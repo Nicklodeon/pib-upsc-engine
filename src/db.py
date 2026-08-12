@@ -1,57 +1,36 @@
-import sqlite3
-from pathlib import Path
-from .config import DB_PATH
+from supabase import create_client
+from .config import SUPABASE_URL, SUPABASE_KEY
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS articles (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guid TEXT UNIQUE,
-    title TEXT NOT NULL,
-    link TEXT,
-    published_at TEXT,
-    source TEXT,
-    ministry TEXT,
-    raw_text TEXT,
-    fetched_at TEXT,
-    processed INTEGER DEFAULT 0,
-    relevant INTEGER,
-    importance INTEGER,
-    gs_papers TEXT,
-    topics TEXT,
-    prelims_facts TEXT,
-    mains_notes TEXT,
-    data_points TEXT,
-    schemes TEXT,
-    institutions TEXT,
-    implications TEXT,
-    possible_questions TEXT,
-    keywords TEXT,
-    flashcards_json TEXT,
-    error TEXT
-);
 
-CREATE INDEX IF NOT EXISTS idx_articles_published ON articles(published_at);
-CREATE INDEX IF NOT EXISTS idx_articles_processed ON articles(processed);
-CREATE INDEX IF NOT EXISTS idx_articles_relevant ON articles(relevant);
-"""
+def get_client():
+    if not SUPABASE_URL:
+        raise RuntimeError("SUPABASE_URL is missing.")
 
-def connect():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(DB_PATH)
-    con.row_factory = sqlite3.Row
-    con.executescript(SCHEMA)
-    return con
+    if not SUPABASE_KEY:
+        raise RuntimeError("SUPABASE_KEY is missing.")
 
-def insert_article(con, item):
-    cur = con.execute(
-        """INSERT OR IGNORE INTO articles
-        (guid,title,link,published_at,source,ministry,raw_text,fetched_at)
-        VALUES (?,?,?,?,?,?,?,?)""",
-        (
-            item["guid"], item["title"], item.get("link"), item.get("published_at"),
-            item.get("source"), item.get("ministry"), item.get("raw_text"),
-            item.get("fetched_at"),
-        ),
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+def insert_article(item):
+    client = get_client()
+
+    data = {
+        "guid": item["guid"],
+        "title": item["title"],
+        "link": item.get("link"),
+        "published_at": item.get("published_at"),
+        "source": item.get("source"),
+        "ministry": item.get("ministry"),
+        "raw_text": item.get("raw_text"),
+        "fetched_at": item.get("fetched_at"),
+    }
+
+    result = (
+        client
+        .table("articles")
+        .upsert(data, on_conflict="guid", ignore_duplicates=True)
+        .execute()
     )
-    con.commit()
-    return cur.rowcount == 1
+
+    return bool(result.data)

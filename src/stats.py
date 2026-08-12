@@ -1,20 +1,48 @@
-from .db import connect
+from .db import get_client
+
 
 def main():
-    con = connect()
-    row = con.execute("""
-        SELECT COUNT(*) total,
-               SUM(CASE WHEN processed=1 THEN 1 ELSE 0 END) processed,
-               SUM(CASE WHEN relevant=1 THEN 1 ELSE 0 END) relevant,
-               AVG(CASE WHEN relevant=1 THEN importance END) avg_importance
-        FROM articles
-    """).fetchone()
+    client = get_client()
 
-    print(f"Total articles: {row['total']}")
-    print(f"Processed: {row['processed']}")
-    print(f"Relevant: {row['relevant']}")
-    print(f"Average importance: {row['avg_importance']}")
-    con.close()
+    result = (
+        client
+        .table("articles")
+        .select("processed, relevant, importance")
+        .execute()
+    )
+
+    rows = result.data or []
+
+    total = len(rows)
+
+    processed = sum(
+        1 for r in rows
+        if r.get("processed")
+    )
+
+    relevant = sum(
+        1 for r in rows
+        if r.get("relevant")
+    )
+
+    importance_values = [
+        r["importance"]
+        for r in rows
+        if r.get("relevant")
+        and r.get("importance") is not None
+    ]
+
+    average_importance = (
+        sum(importance_values) / len(importance_values)
+        if importance_values
+        else 0
+    )
+
+    print(f"Total articles: {total}")
+    print(f"Processed: {processed}")
+    print(f"Relevant: {relevant}")
+    print(f"Average importance: {average_importance:.2f}")
+
 
 if __name__ == "__main__":
     main()

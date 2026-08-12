@@ -1,12 +1,12 @@
 import re
 import time
 from datetime import datetime, timezone
+from xml.etree import ElementTree as ET
 
-import feedparser
 import requests
 from bs4 import BeautifulSoup
 
-from .config import PIB_FEEDS, USER_AGENT, IGNORE_TITLE_PATTERNS
+from .config import PIB_FEEDS, USER_AGENT
 from .db import insert_article
 
 
@@ -21,141 +21,238 @@ def clean_text(html):
     return re.sub(r"\s+", " ", text)
 
 
-def fetch_article(url):
+def fetch_url(url):
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "application/rss+xml, application/xml, text/xml, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
     response = requests.get(
         url,
-        headers={"User-Agent": USER_AGENT},
-        timeout=30
+        headers=headers,
+        timeout=30,
     )
 
     response.raise_for_status()
 
+    return response
+
+
+def fetch_article(url):
+    response = fetch_url(url)
+
     return clean_text(response.text)
 
 
-def should_soft_skip(title):
-    title_lower = title.lower()
+def parse_rss_xml(xml_text, source_name):
 
-    return any(
-        pattern in title_lower
-        for pattern in IGNORE_TITLE_PATTERNS
-    )
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError as error:
+        print("RSS XML parsing failed:")
+        print(error)
+        print("First 1000 characters of response:")
+        print(xml_text[:1000])
+        return []
 
+    articles = []
 
-def parse_feed(feed_url, source_name):
+    # Handles both RSS <item> and Atom-style <entry>
+    items = root.findall(".//item")
 
-    feed = feedparser.parse(feed_url)
+    if not items:
+        items = root.findall(".//{*}entry")
 
-    for entry in feed.entries:
+    print(f"RSS records discovered: {len(items)}")
+
+    for item in items:
+
+        def get_text(tag):
+            element = item.find(tag)
+
+            if element is not None:
+                return element.text or ""
+
+            # Try namespace-independent lookup
+            element = item.find(f".//{{*}}{tag}")
+
+            if element is not None:
+                return element.text or ""
+
+            return ""
+
+        title = get_text("title").strip()
 
         guid = (
-            entry.get("id")
-            or entry.get("guid")
-            or entry.get("link")
+            get_text("guid").strip()
+            or get_text("id").strip()
         )
 
-        title = clean_text(
-            entry.get("title", "")
-        )
+        link = get_text("link").strip()
 
-        link = entry.get("link", "")
+        # Atom links sometimes store URL in href
+        if not link:
+            link_element = item.find(".//{*}link")
+
+            if link_element is not None:
+                link = link_element.attrib.get("href", "")
 
         published = (
-            entry.get("published")
-            or entry.get("updated")
-            or ""
+            get_text("pubDate").strip()
+            or get_text("published").strip()
+            or get_text("updated").strip()
         )
 
-        ministry = (
-            entry.get("author")
-            or entry.get("dc_creator")
-            or ""
+        description = (
+            get_text("description")
+            or get_text("summary")
+            or get_text("content")
         )
 
-        summary = clean_text(
-            entry.get("summary", "")
-        )
+        if not guid:
+            guid = link
 
-        if not guid or not title:
+        if not title or not link:
             continue
 
-        raw_text = summary
+        articles.append({
+            "guid": guid,
+            "title": clean_text(title),
+            "link": link,
+            "published_at": published,
+            "source": source_name,
+            "ministry": "",
+            "summary": clean_text(description),
+        })
+
+    return articles
+
+
+def collect_feed(feed_config):
+
+    feed_url = feed_config["url"]
+    source_name = feed_config["name"]
+
+    print("")
+    print("=" * 70)
+    print(f"FETCHING: {source_name}")
+    print(feed_url)
+    print("=" * 70)
+
+    response = fetch_url(feed_url)
+
+    print(f"HTTP status: {response.status_code}")
+    print(f"Content type: {response.headers.get('content-type')}")
+    print(f"Response size: {len(response.content)} bytes")
+
+    articles = parse_rss_xml(
+        response.text,
+        source_name,
+    )
+
+    print(f"Articles parsed: {len(articles)}")
+
+    added = 0
+
+    for article in articles:
+
+        raw_text = article["summary"]
 
         try:
 
-            if link:
-                raw_text = fetch_article(link)
+            print(f"Fetching article: {article['title']}")
+
+            raw_text = fetch_article(
+                article["link"]
+            )
+
+            print(
+                f"Article fetched: {len(raw_text)} characters"
+            )
 
         except Exception as error:
 
             print(
-                f"Could not fetch article: {title}"
+                f"Article fetch failed: {error}"
             )
 
             print(
-                f"Using RSS summary instead. Error: {error}"
+                "Using RSS summary instead."
             )
 
-        yield {
-            "guid": guid,
-            "title": title,
-            "link": link,
-            "published_at": published,
-            "source": source_name,
-            "ministry": ministry,
+        item = {
+            "guid": article["guid"],
+            "title": article["title"],
+            "link": article["link"],
+            "published_at": article["published_at"],
+            "source": article["source"],
+            "ministry": article["ministry"],
             "raw_text": raw_text,
             "fetched_at": datetime.now(
                 timezone.utc
             ).isoformat(),
-            "soft_skip": should_soft_skip(title),
         }
 
+        try:
 
-def collect():
+            inserted = insert_article(item)
 
-    added = 0
+            if inserted:
 
-    for feed_config in PIB_FEEDS:
-
-        print(
-            f"Fetching feed: {feed_config['name']}"
-        )
-
-        for item in parse_feed(
-            feed_config["url"],
-            feed_config["name"]
-        ):
-
-            try:
-
-                inserted = insert_article(item)
-
-                if inserted:
-                    added += 1
-
-                    print(
-                        f"Added: {item['title']}"
-                    )
-                else:
-                    print(
-                        f"Already exists: {item['title']}"
-                    )
-
-            except Exception as error:
+                added += 1
 
                 print(
-                    f"Database error for: {item['title']}"
+                    f"✓ INSERTED: {article['title']}"
                 )
 
-                print(error)
+            else:
 
-            time.sleep(0.2)
+                print(
+                    f"Already exists: {article['title']}"
+                )
+
+        except Exception as error:
+
+            print(
+                f"✗ Supabase insert failed:"
+            )
+
+            print(error)
+
+        time.sleep(0.2)
 
     return added
 
 
+def collect():
+
+    total_added = 0
+
+    for feed_config in PIB_FEEDS:
+
+        try:
+
+            total_added += collect_feed(
+                feed_config
+            )
+
+        except Exception as error:
+
+            print("")
+            print("FEED ERROR")
+            print(error)
+
+    print("")
+    print("=" * 70)
+    print(
+        f"TOTAL NEW ARTICLES INSERTED: {total_added}"
+    )
+    print("=" * 70)
+
+    return total_added
+
+
 if __name__ == "__main__":
 
-    print(
-        f"Added {collect()} new PIB articles."
-    )
+    collect()

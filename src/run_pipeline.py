@@ -1,38 +1,53 @@
 import argparse
 import json
-from datetime import datetime, timedelta, timezone
 
 from .fetch_pib import collect
 from .ai_processor import process_pending
-from .db import connect
+from .db import get_client
+
 
 def main():
-    p = argparse.ArgumentParser()
-    p.add_argument("--hours", type=int, default=24,
-                   help="Retention window for future extensions; collector currently fetches feed's available items.")
-    p.add_argument("--batch", type=int, default=25)
-    args = p.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--batch", type=int, default=25)
+    args = parser.parse_args()
+
+    print("Starting PIB collection...")
 
     added = collect()
+
+    print(f"New articles collected: {added}")
+    print("Starting AI processing...")
+
     processed = process_pending(args.batch)
 
-    con = connect()
-    counts = con.execute("""
-        SELECT
-          COUNT(*) AS total,
-          SUM(CASE WHEN processed=1 THEN 1 ELSE 0 END) AS processed,
-          SUM(CASE WHEN relevant=1 THEN 1 ELSE 0 END) AS relevant
-        FROM articles
-    """).fetchone()
-    con.close()
+    client = get_client()
 
-    print(json.dumps({
-        "new_articles": added,
-        "processed_now": processed,
-        "database_total": counts["total"],
-        "database_processed": counts["processed"],
-        "database_relevant": counts["relevant"],
-    }, indent=2))
+    result = (
+        client
+        .table("articles")
+        .select("id, processed, relevant")
+        .execute()
+    )
+
+    rows = result.data or []
+
+    total = len(rows)
+    processed_total = sum(1 for r in rows if r.get("processed"))
+    relevant_total = sum(1 for r in rows if r.get("relevant"))
+
+    print(
+        json.dumps(
+            {
+                "new_articles": added,
+                "processed_now": processed,
+                "database_total": total,
+                "database_processed": processed_total,
+                "database_relevant": relevant_total,
+            },
+            indent=2,
+        )
+    )
+
 
 if __name__ == "__main__":
     main()

@@ -1,6 +1,7 @@
 import re
 import time
 from datetime import datetime, timezone
+from urllib.parse import urljoin
 from xml.etree import ElementTree as ET
 
 import requests
@@ -8,6 +9,9 @@ from bs4 import BeautifulSoup
 
 from .config import PIB_FEEDS, USER_AGENT
 from .db import insert_article
+
+
+PIB_BASE = "https://www.pib.gov.in"
 
 
 def clean_text(html):
@@ -21,10 +25,17 @@ def clean_text(html):
     return re.sub(r"\s+", " ", text)
 
 
-def fetch_url(url):
+def get_response(url):
+
     headers = {
-        "User-Agent": USER_AGENT,
-        "Accept": "application/rss+xml, application/xml, text/xml, */*",
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 Chrome/151 Safari/537.36"
+        ),
+        "Accept": (
+            "text/html,application/xhtml+xml,"
+            "application/xml;q=0.9,*/*;q=0.8"
+        ),
         "Accept-Language": "en-US,en;q=0.9",
     }
 
@@ -40,154 +51,266 @@ def fetch_url(url):
 
 
 def fetch_article(url):
-    response = fetch_url(url)
+
+    response = get_response(url)
 
     return clean_text(response.text)
 
 
-def parse_rss_xml(xml_text, source_name):
+# ---------------------------------------------------------
+# RSS
+# ---------------------------------------------------------
+
+def parse_rss(response, source_name):
 
     try:
-        root = ET.fromstring(xml_text)
+
+        # Use bytes rather than response.text so XML encoding
+        # declarations are handled correctly.
+        root = ET.fromstring(response.content)
+
     except ET.ParseError as error:
+
         print("RSS XML parsing failed:")
         print(error)
-        print("First 1000 characters of response:")
-        print(xml_text[:1000])
+
+        print("Falling back to PIB All Releases page.")
+
         return []
 
-    articles = []
-
-    # Handles both RSS <item> and Atom-style <entry>
     items = root.findall(".//item")
 
     if not items:
         items = root.findall(".//{*}entry")
 
-    print(f"RSS records discovered: {len(items)}")
+    print(
+        f"RSS records discovered: {len(items)}"
+    )
+
+    articles = []
 
     for item in items:
 
-        def get_text(tag):
+        def text(tag):
+
             element = item.find(tag)
 
             if element is not None:
                 return element.text or ""
 
-            # Try namespace-independent lookup
-            element = item.find(f".//{{*}}{tag}")
+            element = item.find(
+                f".//{{*}}{tag}"
+            )
 
             if element is not None:
                 return element.text or ""
 
             return ""
 
-        title = get_text("title").strip()
+        title = text("title").strip()
 
         guid = (
-            get_text("guid").strip()
-            or get_text("id").strip()
+            text("guid").strip()
+            or text("id").strip()
         )
 
-        link = get_text("link").strip()
+        link = text("link").strip()
 
-        # Atom links sometimes store URL in href
         if not link:
-            link_element = item.find(".//{*}link")
+
+            link_element = item.find(
+                ".//{*}link"
+            )
 
             if link_element is not None:
-                link = link_element.attrib.get("href", "")
+
+                link = link_element.attrib.get(
+                    "href",
+                    ""
+                )
 
         published = (
-            get_text("pubDate").strip()
-            or get_text("published").strip()
-            or get_text("updated").strip()
+            text("pubDate").strip()
+            or text("published").strip()
+            or text("updated").strip()
         )
 
         description = (
-            get_text("description")
-            or get_text("summary")
-            or get_text("content")
+            text("description")
+            or text("summary")
+            or text("content")
         )
-
-        if not guid:
-            guid = link
 
         if not title or not link:
             continue
 
-        articles.append({
-            "guid": guid,
-            "title": clean_text(title),
-            "link": link,
-            "published_at": published,
-            "source": source_name,
-            "ministry": "",
-            "summary": clean_text(description),
-        })
+        articles.append(
+            {
+                "guid": guid or link,
+                "title": clean_text(title),
+                "link": urljoin(
+                    PIB_BASE,
+                    link
+                ),
+                "published_at": published,
+                "source": source_name,
+                "summary": clean_text(
+                    description
+                ),
+            }
+        )
 
     return articles
 
 
-def collect_feed(feed_config):
+# ---------------------------------------------------------
+# PIB ALL RELEASES FALLBACK
+# ---------------------------------------------------------
 
-    feed_url = feed_config["url"]
-    source_name = feed_config["name"]
+def scrape_all_releases():
+
+    url = (
+        "https://www.pib.gov.in/"
+        "AllRelease.aspx?lang=1&reg=3"
+    )
 
     print("")
     print("=" * 70)
-    print(f"FETCHING: {source_name}")
-    print(feed_url)
+    print("FALLBACK: PIB ALL RELEASES")
+    print(url)
     print("=" * 70)
 
-    response = fetch_url(feed_url)
+    response = get_response(url)
 
-    print(f"HTTP status: {response.status_code}")
-    print(f"Content type: {response.headers.get('content-type')}")
-    print(f"Response size: {len(response.content)} bytes")
-
-    articles = parse_rss_xml(
-        response.text,
-        source_name,
+    print(
+        f"All Releases HTTP status: "
+        f"{response.status_code}"
     )
 
-    print(f"Articles parsed: {len(articles)}")
+    soup = BeautifulSoup(
+        response.text,
+        "html.parser"
+    )
+
+    articles = []
+    seen = set()
+
+    for anchor in soup.find_all("a"):
+
+        href = anchor.get("href", "")
+
+        title = anchor.get_text(
+            " ",
+            strip=True
+        )
+
+        if not href or not title:
+            continue
+
+        href_lower = href.lower()
+
+        # PIB uses several variants of article URLs.
+        valid_url = any(
+            x in href_lower
+            for x in [
+                "pressreleasepage.aspx",
+                "pressrelesedetail.aspx",
+                "pressreleaseiframepage.aspx",
+                "pressnotedetails.aspx",
+            ]
+        )
+
+        if not valid_url:
+            continue
+
+        link = urljoin(
+            PIB_BASE,
+            href
+        )
+
+        if link in seen:
+            continue
+
+        seen.add(link)
+
+        articles.append(
+            {
+                "guid": link,
+                "title": clean_text(title),
+                "link": link,
+                "published_at": "",
+                "source": "PIB All Releases",
+                "summary": "",
+            }
+        )
+
+    print(
+        f"All Releases links discovered: "
+        f"{len(articles)}"
+    )
+
+    return articles
+
+
+# ---------------------------------------------------------
+# PROCESS ARTICLES
+# ---------------------------------------------------------
+
+def save_articles(articles):
 
     added = 0
 
+    # Only process a small number during testing.
+    # We'll increase this after everything works.
+    articles = articles[:10]
+
     for article in articles:
+
+        print("")
+        print(
+            f"Fetching article: "
+            f"{article['title']}"
+        )
 
         raw_text = article["summary"]
 
         try:
-
-            print(f"Fetching article: {article['title']}")
 
             raw_text = fetch_article(
                 article["link"]
             )
 
             print(
-                f"Article fetched: {len(raw_text)} characters"
+                f"Article fetched: "
+                f"{len(raw_text)} characters"
             )
 
         except Exception as error:
 
             print(
-                f"Article fetch failed: {error}"
+                f"Article fetch failed: "
+                f"{error}"
             )
 
-            print(
-                "Using RSS summary instead."
-            )
+            if not raw_text:
+
+                print(
+                    "Skipping article because "
+                    "no article text was obtained."
+                )
+
+                continue
 
         item = {
             "guid": article["guid"],
             "title": article["title"],
             "link": article["link"],
-            "published_at": article["published_at"],
+            "published_at": (
+                article["published_at"]
+                or None
+            ),
             "source": article["source"],
-            "ministry": article["ministry"],
+            "ministry": "",
             "raw_text": raw_text,
             "fetched_at": datetime.now(
                 timezone.utc
@@ -196,34 +319,39 @@ def collect_feed(feed_config):
 
         try:
 
-            inserted = insert_article(item)
+            inserted = insert_article(
+                item
+            )
 
             if inserted:
 
                 added += 1
 
                 print(
-                    f"✓ INSERTED: {article['title']}"
+                    "✓ INSERTED"
                 )
 
             else:
 
                 print(
-                    f"Already exists: {article['title']}"
+                    "Already exists"
                 )
 
         except Exception as error:
 
             print(
-                f"✗ Supabase insert failed:"
+                f"✗ Supabase error: "
+                f"{error}"
             )
-
-            print(error)
 
         time.sleep(0.2)
 
     return added
 
+
+# ---------------------------------------------------------
+# MAIN COLLECTOR
+# ---------------------------------------------------------
 
 def collect():
 
@@ -231,22 +359,99 @@ def collect():
 
     for feed_config in PIB_FEEDS:
 
+        print("")
+        print("=" * 70)
+        print(
+            f"TRYING RSS: "
+            f"{feed_config['name']}"
+        )
+        print(
+            feed_config["url"]
+        )
+        print("=" * 70)
+
         try:
 
-            total_added += collect_feed(
-                feed_config
+            response = get_response(
+                feed_config["url"]
+            )
+
+            print(
+                f"HTTP status: "
+                f"{response.status_code}"
+            )
+
+            print(
+                f"Content type: "
+                f"{response.headers.get('content-type')}"
+            )
+
+            print(
+                f"Response size: "
+                f"{len(response.content)} bytes"
+            )
+
+            articles = parse_rss(
+                response,
+                feed_config["name"]
+            )
+
+            if articles:
+
+                print(
+                    "RSS worked successfully."
+                )
+
+                total_added += save_articles(
+                    articles
+                )
+
+                continue
+
+            print(
+                "RSS returned no usable "
+                "articles."
             )
 
         except Exception as error:
 
-            print("")
-            print("FEED ERROR")
-            print(error)
+            print(
+                f"RSS request failed: "
+                f"{error}"
+            )
+
+    # -----------------------------------------------------
+    # FALLBACK
+    # -----------------------------------------------------
+
+    if total_added == 0:
+
+        print("")
+        print(
+            "RSS unavailable. "
+            "Using All Releases fallback."
+        )
+
+        try:
+
+            articles = scrape_all_releases()
+
+            total_added += save_articles(
+                articles
+            )
+
+        except Exception as error:
+
+            print(
+                f"All Releases fallback failed: "
+                f"{error}"
+            )
 
     print("")
     print("=" * 70)
     print(
-        f"TOTAL NEW ARTICLES INSERTED: {total_added}"
+        f"TOTAL NEW ARTICLES INSERTED: "
+        f"{total_added}"
     )
     print("=" * 70)
 

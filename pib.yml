@@ -1,0 +1,46 @@
+name: PIB UPSC Engine
+
+on:
+  schedule:
+    # Every 6 hours, UTC. Adjust if desired.
+    - cron: "0 */6 * * *"
+    # Every Sunday at 14:30 UTC = 20:00 IST.
+    - cron: "30 14 * * 0"
+  workflow_dispatch:
+
+jobs:
+  collect-and-process:
+    if: github.event.schedule != '30 14 * * 0'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - run: python -m src.run_pipeline --batch 25
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+
+  weekly-digest:
+    if: github.event.schedule == '30 14 * * 0'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - run: python -m src.run_pipeline --batch 100
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+      - run: python -m src.weekly_digest --days 7
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pib-upsc-weekly
+          path: output/

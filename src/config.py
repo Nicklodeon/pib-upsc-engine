@@ -14,8 +14,8 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
 
 PIB_FEEDS = [
     {
-        "name": "PIB English - Region 1",
-        "url": "https://www.pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=1",
+        "name": "PIB English - Delhi",
+        "url": "https://www.pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3",
     },
 ]
 

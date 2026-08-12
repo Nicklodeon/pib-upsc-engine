@@ -1,52 +1,100 @@
 import re
 import time
 from datetime import datetime, timezone
-from urllib.parse import urljoin
 
 import feedparser
 import requests
 from bs4 import BeautifulSoup
 
 from .config import PIB_FEEDS, USER_AGENT, IGNORE_TITLE_PATTERNS
-from .db import connect, insert_article
+from .db import insert_article
+
 
 def clean_text(html):
     soup = BeautifulSoup(html or "", "html.parser")
+
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()
+
     text = soup.get_text(" ", strip=True)
+
     return re.sub(r"\s+", " ", text)
 
+
 def fetch_article(url):
-    r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=30)
-    r.raise_for_status()
-    return clean_text(r.text)
+    response = requests.get(
+        url,
+        headers={"User-Agent": USER_AGENT},
+        timeout=30
+    )
+
+    response.raise_for_status()
+
+    return clean_text(response.text)
+
 
 def should_soft_skip(title):
-    t = title.lower()
-    return any(p in t for p in IGNORE_TITLE_PATTERNS)
+    title_lower = title.lower()
+
+    return any(
+        pattern in title_lower
+        for pattern in IGNORE_TITLE_PATTERNS
+    )
+
 
 def parse_feed(feed_url, source_name):
+
     feed = feedparser.parse(feed_url)
-    for e in feed.entries:
-        guid = e.get("id") or e.get("guid") or e.get("link")
-        title = clean_text(e.get("title", ""))
-        link = e.get("link", "")
-        published = e.get("published") or e.get("updated") or ""
-        ministry = e.get("author") or e.get("dc_creator") or ""
-        summary = clean_text(e.get("summary", ""))
+
+    for entry in feed.entries:
+
+        guid = (
+            entry.get("id")
+            or entry.get("guid")
+            or entry.get("link")
+        )
+
+        title = clean_text(
+            entry.get("title", "")
+        )
+
+        link = entry.get("link", "")
+
+        published = (
+            entry.get("published")
+            or entry.get("updated")
+            or ""
+        )
+
+        ministry = (
+            entry.get("author")
+            or entry.get("dc_creator")
+            or ""
+        )
+
+        summary = clean_text(
+            entry.get("summary", "")
+        )
 
         if not guid or not title:
             continue
 
-        raw = summary
-        # Keep the collector resilient: if article fetch fails, the feed summary
-        # is still stored and can be retried later.
+        raw_text = summary
+
         try:
+
             if link:
-                raw = fetch_article(link)
-        except Exception:
-            raw = summary
+                raw_text = fetch_article(link)
+
+        except Exception as error:
+
+            print(
+                f"Could not fetch article: {title}"
+            )
+
+            print(
+                f"Using RSS summary instead. Error: {error}"
+            )
 
         yield {
             "guid": guid,
@@ -55,21 +103,59 @@ def parse_feed(feed_url, source_name):
             "published_at": published,
             "source": source_name,
             "ministry": ministry,
-            "raw_text": raw,
-            "fetched_at": datetime.now(timezone.utc).isoformat(),
+            "raw_text": raw_text,
+            "fetched_at": datetime.now(
+                timezone.utc
+            ).isoformat(),
             "soft_skip": should_soft_skip(title),
         }
 
+
 def collect():
-    con = connect()
+
     added = 0
-    for feed_cfg in PIB_FEEDS:
-        for item in parse_feed(feed_cfg["url"], feed_cfg["name"]):
-            if insert_article(con, item):
-                added += 1
+
+    for feed_config in PIB_FEEDS:
+
+        print(
+            f"Fetching feed: {feed_config['name']}"
+        )
+
+        for item in parse_feed(
+            feed_config["url"],
+            feed_config["name"]
+        ):
+
+            try:
+
+                inserted = insert_article(item)
+
+                if inserted:
+                    added += 1
+
+                    print(
+                        f"Added: {item['title']}"
+                    )
+                else:
+                    print(
+                        f"Already exists: {item['title']}"
+                    )
+
+            except Exception as error:
+
+                print(
+                    f"Database error for: {item['title']}"
+                )
+
+                print(error)
+
             time.sleep(0.2)
-    con.close()
+
     return added
 
+
 if __name__ == "__main__":
-    print(f"Added {collect()} new PIB articles.")
+
+    print(
+        f"Added {collect()} new PIB articles."
+    )

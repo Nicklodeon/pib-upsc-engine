@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>PIB UPSC</title>
+
+    <link rel="stylesheet" href="styles.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+<div class="app">
+
+    <!-- SIDEBAR -->
+
+    <aside class="sidebar">
+
+        <div class="brand">
+            <div class="brand-icon">P</div>
+
+            <div>
+                <h1>PIB UPSC</h1>
+                <span>Current Affairs Engine</span>
+            </div>
+        </div>
+
+        <nav>
+
+            <button class="nav-item active" data-view="dashboard">
+                <span>⌂</span>
+                Dashboard
+            </button>
+
+            <button class="nav-item" data-view="articles">
+                <span>◈</span>
+                Current Affairs
+            </button>
+
+            <button class="nav-item" data-view="gs">
+                <span>▦</span>
+                GS Papers
+            </button>
+
+            <button class="nav-item" data-view="flashcards">
+                <span>◇</span>
+                Flashcards
+            </button>
+
+            <button class="nav-item" data-view="revision">
+                <span>↻</span>
+                Revision
+            </button>
+
+        </nav>
+
+        <div class="sidebar-footer">
+            <span>PIB → AI → UPSC</span>
+        </div>
+
+    </aside>
+
+
+    <!-- MAIN -->
+
+    <main class="main">
+
+        <header class="topbar">
+
+            <div>
+                <div class="eyebrow">UPSC CURRENT AFFAIRS</div>
+                <h2 id="page-title">Dashboard</h2>
+            </div>
+
+            <div class="topbar-right">
+
+                <div class="search">
+                    <span>⌕</span>
+                    <input
+                        id="global-search"
+                        type="text"
+                        placeholder="Search current affairs..."
+                    >
+                </div>
+
+                <button id="refresh-btn" class="refresh">
+                    ↻
+                </button>
+
+            </div>
+
+        </header>
+
+
+        <!-- DASHBOARD -->
+
+        <section id="dashboard-view" class="view active-view">
+
+            <div class="hero">
+
+                <div>
+                    <div class="hero-label">YOUR UPSC KNOWLEDGE BASE</div>
+
+                    <h3>
+                        Stay updated.<br>
+                        Revise intelligently.
+                    </h3>
+
+                    <p>
+                        PIB releases transformed into concise
+                        Prelims facts, Mains notes and flashcards.
+                    </p>
+                </div>
+
+                <div class="hero-stat">
+                    <strong id="hero-count">0</strong>
+                    <span>Articles captured</span>
+                </div>
+
+            </div>
+
+
+            <div class="stats-grid">
+
+                <div class="stat-card">
+                    <span>Total Articles</span>
+                    <strong id="total-count">0</strong>
+                </div>
+
+                <div class="stat-card">
+                    <span>UPSC Relevant</span>
+                    <strong id="relevant-count">0</strong>
+                </div>
+
+                <div class="stat-card">
+                    <span>High Priority</span>
+                    <strong id="important-count">0</strong>
+                </div>
+
+                <div class="stat-card">
+                    <span>Processed</span>
+                    <strong id="processed-count">0</strong>
+                </div>
+
+            </div>
+
+
+            <div class="section-heading">
+
+                <div>
+                    <span class="eyebrow">RECENT</span>
+                    <h3>Latest current affairs</h3>
+                </div>
+
+                <button
+                    class="text-button"
+                    data-view="articles"
+                >
+                    View all →
+                </button>
+
+            </div>
+
+
+            <div id="recent-articles" class="article-grid"></div>
+
+        </section>
+
+
+        <!-- ARTICLES -->
+
+        <section id="articles-view" class="view">
+
+            <div class="filters">
+
+                <select id="importance-filter">
+                    <option value="">All importance</option>
+                    <option value="9">9–10 · Must Know</option>
+                    <option value="7">7–8 · Important</option>
+                    <option value="4">4–6 · Background</option>
+                    <option value="1">1–3 · Low</option>
+                </select>
+
+                <select id="gs-filter">
+                    <option value="">All GS papers</option>
+                    <option value="GS1">GS1</option>
+                    <option value="GS2">GS2</option>
+                    <option value="GS3">GS3</option>
+                    <option value="GS4">GS4</option>
+                    <option value="Prelims">Prelims</option>
+                </select>
+
+                <select id="relevance-filter">
+                    <option value="">All articles</option>
+                    <option value="true">UPSC relevant</option>
+                    <option value="false">Background</option>
+                </select>
+
+            </div>
+
+            <div id="articles-list" class="article-list"></div>
+
+        </section>
+
+
+        <!-- GS -->
+
+        <section id="gs-view" class="view">
+
+            <div class="gs-grid">
+
+                <button class="gs-card" data-gs="GS1">
+                    <span>GS 1</span>
+                    <strong>Society · History · Geography</strong>
+                </button>
+
+                <button class="gs-card" data-gs="GS2">
+                    <span>GS 2</span>
+                    <strong>Polity · Governance · IR</strong>
+                </button>
+
+                <button class="gs-card" data-gs="GS3">
+                    <span>GS 3</span>
+                    <strong>Economy · S&T · Environment</strong>
+                </button>
+
+                <button class="gs-card" data-gs="GS4">
+                    <span>GS 4</span>
+                    <strong>Ethics · Integrity · Aptitude</strong>
+                </button>
+
+                <button class="gs-card" data-gs="Prelims">
+                    <span>PRELIMS</span>
+                    <strong>Facts · Concepts · Static links</strong>
+                </button>
+
+            </div>
+
+            <div id="gs-articles"></div>
+
+        </section>
+
+
+        <!-- FLASHCARDS -->
+
+        <section id="flashcards-view" class="view">
+
+            <div class="flashcard-header">
+
+                <div>
+                    <span class="eyebrow">ACTIVE RECALL</span>
+                    <h3>Test yourself</h3>
+                </div>
+
+                <div id="flashcard-progress">
+                    1 / 1
+                </div>
+
+            </div>
+
+            <div id="flashcard-container"></div>
+
+        </section>
+
+
+        <!-- REVISION -->
+
+        <section id="revision-view" class="view">
+
+            <div class="revision-hero">
+
+                <span class="eyebrow">REVISION</span>
+
+                <h3>
+                    What should you revise?
+                </h3>
+
+                <p>
+                    Focus on high-importance articles and
+                    previously generated flashcards.
+                </p>
+
+            </div>
+
+            <div id="revision-list"></div>
+
+        </section>
+
+    </main>
+
+</div>
+
+
+<!-- ARTICLE MODAL -->
+
+<div id="article-modal" class="modal hidden">
+
+    <div class="modal-content">
+
+        <button id="close-modal" class="close">
+            ×
+        </button>
+
+        <div id="article-detail"></div>
+
+    </div>
+
+</div>
+
+
+<script src="app.js"></script>
+
+</body>
+</html>

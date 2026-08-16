@@ -749,4 +749,19 @@ nav {
     .stats-grid {
         grid-template-columns: 1fr;
     }
+    .month-section {
+    margin-bottom: 36px;
+}
+
+.month-heading {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+
+    padding-bottom: 10px;
+
+    border-bottom: 2px solid var(--border);
+
+    margin-bottom: 12px;
+}
 }

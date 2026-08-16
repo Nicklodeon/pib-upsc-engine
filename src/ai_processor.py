@@ -14,6 +14,7 @@ Analyze the provided PIB article specifically for UPSC preparation.
 Do NOT blindly summarize the article.
 
 Identify:
+
 1. Whether it is relevant for UPSC.
 2. Importance from 1-10.
 3. Relevant GS paper(s): GS1, GS2, GS3, GS4 and/or Prelims.
@@ -28,6 +29,8 @@ Identify:
 11. Possible UPSC questions.
 12. Keywords.
 13. Flashcards.
+14. An accurate English title.
+15. A concise English summary.
 
 Be conservative and factual.
 
@@ -43,39 +46,7 @@ Importance:
 7-8 = important
 9-10 = must know
 """
-{
-  "relevant": true,
-  "importance": 8,
 
-  "english_title": "...",
-
-  "english_summary": "...",
-
-  "gs_papers": [
-    "GS2",
-    "Prelims"
-  ],
-
-  "topics": [],
-
-  "prelims_facts": [],
-
-  "mains_notes": [],
-
-  "data_points": [],
-
-  "schemes": [],
-
-  "institutions": [],
-
-  "implications": [],
-
-  "possible_questions": [],
-
-  "keywords": [],
-
-  "flashcards": []
-}
 
 def get_client_ai():
 
@@ -143,60 +114,86 @@ Return ONLY valid JSON.
 Use exactly this structure:
 
 {{
-  "relevant": true,
-  "importance": 8,
-  "gs_papers": ["GS2", "Prelims"],
-  "topics": ["Governance", "Digital Public Infrastructure"],
-  "prelims_facts": [
-    "Fact 1",
-    "Fact 2"
-  ],
-  "mains_notes": [
-    "Point 1",
-    "Point 2"
-  ],
-  "data_points": [
-    "Important statistic"
-  ],
-  "schemes": [
-    "Scheme or programme"
-  ],
-  "institutions": [
-    "Institution or organisation"
-  ],
-  "implications": [
-    "Implication 1",
-    "Implication 2"
-  ],
-  "possible_questions": [
-    "Possible UPSC Mains question",
-    "Possible Prelims question"
-  ],
-  "keywords": [
-    "Keyword 1",
-    "Keyword 2"
-  ],
-  "flashcards": [
-    {{
-      "question": "Question",
-      "answer": "Answer",
-      "type": "Prelims"
-    }},
-    {{
-      "question": "Question",
-      "answer": "Answer",
-      "type": "Concept"
-    }}
-  ]
+    "relevant": true,
+    "importance": 8,
+
+    "english_title": "Accurate English title of the PIB article",
+
+    "english_summary": "Concise 3-5 sentence English summary of the article",
+
+    "gs_papers": [
+        "GS2",
+        "Prelims"
+    ],
+
+    "topics": [
+        "Governance",
+        "Digital Public Infrastructure"
+    ],
+
+    "prelims_facts": [
+        "Fact 1",
+        "Fact 2"
+    ],
+
+    "mains_notes": [
+        "Point 1",
+        "Point 2"
+    ],
+
+    "data_points": [
+        "Important statistic"
+    ],
+
+    "schemes": [
+        "Scheme or programme"
+    ],
+
+    "institutions": [
+        "Institution or organisation"
+    ],
+
+    "implications": [
+        "Implication 1",
+        "Implication 2"
+    ],
+
+    "possible_questions": [
+        "Possible UPSC Mains question",
+        "Possible Prelims question"
+    ],
+
+    "keywords": [
+        "Keyword 1",
+        "Keyword 2"
+    ],
+
+    "flashcards": [
+        {{
+            "question": "Question",
+            "answer": "Answer",
+            "type": "Prelims"
+        }},
+        {{
+            "question": "Question",
+            "answer": "Answer",
+            "type": "Concept"
+        }}
+    ]
 }}
 
 Rules:
+
 - relevant must be true or false.
 - importance must be an integer from 1 to 10.
 - gs_papers must contain only GS1, GS2, GS3, GS4 or Prelims.
 - flashcard type must be Prelims, Mains or Concept.
+- english_title must accurately represent the original PIB title.
+- english_summary must be concise, factual and written in clear English.
 - Return empty arrays where information is unavailable.
 - Do not invent facts.
+- Do not add information that is not present or reasonably supported
+  by the article.
 """
 
     response = client.chat.completions.create(
@@ -232,52 +229,70 @@ def process_one(row):
 
     update = {
         "processed": True,
+
         "relevant": bool(
             result.get("relevant", False)
         ),
+
         "importance": int(
             result.get("importance", 1)
         ),
+
         "gs_papers": result.get(
             "gs_papers", []
         ),
+
         "topics": result.get(
             "topics", []
         ),
+
         "prelims_facts": result.get(
             "prelims_facts", []
         ),
+
         "mains_notes": result.get(
             "mains_notes", []
         ),
+
         "data_points": result.get(
             "data_points", []
         ),
+
         "schemes": result.get(
             "schemes", []
         ),
+
         "institutions": result.get(
             "institutions", []
         ),
+
         "implications": result.get(
             "implications", []
         ),
+
         "possible_questions": result.get(
             "possible_questions", []
         ),
+
         "keywords": result.get(
             "keywords", []
         ),
+
         "flashcards": result.get(
             "flashcards", []
         ),
-        "processing_error": None,
+
         "english_title": result.get(
             "english_title",
             row.get("title", "")
         ),
+
         "english_summary": result.get(
-            "english_summary",""),
+            "english_summary",
+            ""
+        ),
+
+        "processing_error": None,
     }
 
     (

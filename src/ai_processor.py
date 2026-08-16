@@ -92,7 +92,7 @@ def analyse_article(row):
 
     article_text = (
         row.get("raw_text") or ""
-    )[:25000]
+    )[:7000]
 
     prompt = f"""
 Analyze this PIB article for UPSC preparation.
@@ -209,7 +209,7 @@ Rules:
             },
         ],
         temperature=0.1,
-        max_tokens=5000,
+        max_tokens=1800,
     )
 
     content = (

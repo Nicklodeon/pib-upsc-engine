@@ -43,7 +43,39 @@ Importance:
 7-8 = important
 9-10 = must know
 """
+{
+  "relevant": true,
+  "importance": 8,
 
+  "english_title": "...",
+
+  "english_summary": "...",
+
+  "gs_papers": [
+    "GS2",
+    "Prelims"
+  ],
+
+  "topics": [],
+
+  "prelims_facts": [],
+
+  "mains_notes": [],
+
+  "data_points": [],
+
+  "schemes": [],
+
+  "institutions": [],
+
+  "implications": [],
+
+  "possible_questions": [],
+
+  "keywords": [],
+
+  "flashcards": []
+}
 
 def get_client_ai():
 
@@ -240,6 +272,12 @@ def process_one(row):
             "flashcards", []
         ),
         "processing_error": None,
+        "english_title": result.get(
+            "english_title",
+            row.get("title", "")
+        ),
+        "english_summary": result.get(
+            "english_summary",""),
     }
 
     (

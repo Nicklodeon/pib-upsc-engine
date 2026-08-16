@@ -221,6 +221,9 @@ Rules:
         ],
         temperature=0.1,
         max_tokens=1800,
+        response_format = {
+            "type":"json_object"
+        },
     )
 
     content = (

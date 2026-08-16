@@ -27,18 +27,20 @@ let currentFlashcard = 0;
 async function loadArticles() {
 
     const {
-        data,
-        error
-    } = await db
-        .from("articles")
-        .select("*")
-        .order(
-            "published_at",
-            {
-                ascending: false,
-                nullsFirst: false
-            }
-        );
+    data,
+    error
+} = await db
+    .from("articles")
+    .select("*")
+    .eq("relevant", true)
+    .gte("importance", 7)
+    .order(
+        "published_at",
+        {
+            ascending: false,
+            nullsFirst: false
+        }
+    );
 
     if (error) {
 
@@ -126,7 +128,9 @@ function renderDashboard() {
 /* --------------------------------------------------
    ARTICLE CARD
 -------------------------------------------------- */
-
+<div class="article-date">
+    ${formatDate(article.published_at)}
+</div>
 function articleCard(article) {
 
     const importance =
@@ -952,7 +956,98 @@ document.getElementById(
     "click",
     loadArticles
 );
+function formatDate(dateValue) {
 
+    if (!dateValue) {
+        return "Date unavailable";
+    }
+
+    const date = new Date(dateValue);
+
+    return date.toLocaleDateString(
+        "en-IN",
+        {
+            day: "2-digit",
+            month: "short",
+            year: "numeric"
+        }
+    );
+}
+function monthYear(dateValue) {
+
+    if (!dateValue) {
+        return "Date unavailable";
+    }
+
+    return new Date(dateValue).toLocaleDateString(
+        "en-IN",
+        {
+            month: "long",
+            year: "numeric"
+        }
+    ).toUpperCase();
+}
+function renderArticles(filtered = articles) {
+
+    const container =
+        document.getElementById(
+            "articles-list"
+        );
+
+    if (!filtered.length) {
+
+        container.innerHTML = `
+            <div class="empty-state">
+                No UPSC-relevant articles found.
+            </div>
+        `;
+
+        return;
+    }
+
+    const groups = {};
+
+    filtered.forEach(article => {
+
+        const month =
+            monthYear(
+                article.published_at
+            );
+
+        if (!groups[month]) {
+            groups[month] = [];
+        }
+
+        groups[month].push(article);
+
+    });
+
+
+    container.innerHTML =
+        Object.entries(groups)
+            .map(
+                ([month, monthArticles]) => `
+
+                    <div class="month-section">
+
+                        <div class="month-heading">
+                            ${month}
+                        </div>
+
+                        <div class="article-list">
+
+                            ${monthArticles
+                                .map(articleListItem)
+                                .join("")}
+
+                        </div>
+
+                    </div>
+
+                `
+            )
+            .join("");
+}
 
 /* START */
 

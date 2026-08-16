@@ -194,6 +194,17 @@ Rules:
 - Do not invent facts.
 - Do not add information that is not present or reasonably supported
   by the article.
+- Keep the response concise.
+- Maximum 5 prelims facts.
+- Maximum 5 mains notes.
+- Maximum 3 data points.
+- Maximum 3 schemes.
+- Maximum 5 institutions.
+- Maximum 5 implications.
+- Maximum 3 possible questions.
+- Maximum 8 keywords.
+- Maximum 5 flashcards.
+- English summary must be 80-120 words.
 """
 
     response = client.chat.completions.create(

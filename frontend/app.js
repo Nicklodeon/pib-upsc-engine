@@ -1,6 +1,5 @@
 /* =========================================================
    PIB UPSC — APP.JS
-   Dynamic month slicer + monthly article grouping
    ========================================================= */
 
 
@@ -46,17 +45,11 @@ let selectedMonth = "ALL";
 function getArticleDate(article) {
 
     const candidates = [
-
         article.published_at,
-
         article.fetched_at,
-
         article.created_at,
-
         article.inserted_at,
-
         article.updated_at
-
     ];
 
     for (const value of candidates) {
@@ -70,7 +63,6 @@ function getArticleDate(article) {
         if (!Number.isNaN(date.getTime())) {
             return date;
         }
-
     }
 
     return null;
@@ -94,16 +86,16 @@ function getDisplayDate(article) {
 }
 
 
-function formatDate(dateValue) {
+function formatDate(value) {
 
-    if (!dateValue) {
+    if (!value) {
         return "";
     }
 
     const date =
-        dateValue instanceof Date
-            ? dateValue
-            : new Date(dateValue);
+        value instanceof Date
+            ? value
+            : new Date(value);
 
     if (Number.isNaN(date.getTime())) {
         return "";
@@ -150,8 +142,7 @@ function getMonthLabelFromKey(key) {
     const [
         year,
         month
-    ] =
-        key.split("-");
+    ] = key.split("-");
 
     const date =
         new Date(
@@ -160,13 +151,15 @@ function getMonthLabelFromKey(key) {
             1
         );
 
-    return date.toLocaleDateString(
-        "en-IN",
-        {
-            month: "long",
-            year: "numeric"
-        }
-    ).toUpperCase();
+    return date
+        .toLocaleDateString(
+            "en-IN",
+            {
+                month: "long",
+                year: "numeric"
+            }
+        )
+        .toUpperCase();
 }
 
 
@@ -179,11 +172,9 @@ function articleTimestamp(article) {
     const date =
         getArticleDate(article);
 
-    if (!date) {
-        return 0;
-    }
-
-    return date.getTime();
+    return date
+        ? date.getTime()
+        : 0;
 }
 
 
@@ -214,14 +205,12 @@ function setLoading(loading) {
         return;
     }
 
-    button.disabled =
-        loading;
+    button.disabled = loading;
 
     button.classList.toggle(
         "loading",
         loading
     );
-
 }
 
 
@@ -244,18 +233,16 @@ function updateLastUpdated() {
         return;
     }
 
-    const date =
-        new Date(lastFetchTime);
-
     element.textContent =
-        `Updated ${date.toLocaleTimeString(
+        `Updated ${new Date(
+            lastFetchTime
+        ).toLocaleTimeString(
             "en-IN",
             {
                 hour: "2-digit",
                 minute: "2-digit"
             }
         )}`;
-
 }
 
 
@@ -335,32 +322,24 @@ async function loadArticles() {
         setLoading(false);
 
     }
-
 }
 
 
 /* =========================================================
-   BUILD MONTH SLICERS
+   MONTH SLICERS
    ========================================================= */
 
 function buildMonthSlicers() {
 
-    const selectors = [
-
+    const monthFilter =
         document.getElementById(
             "month-filter"
-        ),
+        );
 
+    const dashboardMonthFilter =
         document.getElementById(
             "dashboard-month-filter"
-        )
-
-    ].filter(Boolean);
-
-
-    if (selectors.length === 0) {
-        return;
-    }
+        );
 
 
     const monthMap =
@@ -409,68 +388,129 @@ function buildMonthSlicers() {
         );
 
 
-    selectors.forEach(
-        select => {
+    const options = `
 
-            const currentValue =
-                selectedMonth;
+        <option value="ALL">
+            All Months
+        </option>
 
-
-            select.innerHTML = `
-
-                <option value="ALL">
-                    All Months
-                </option>
-
-                ${months
-                    .map(
-                        (
-                            [
-                                key,
-                                label
-                            ]
-                        ) => `
-
-                            <option
-                                value="${escapeHtml(key)}"
-                            >
-                                ${escapeHtml(label)}
-                            </option>
-
-                        `
-                    )
-                    .join("")
-                }
-
-            `;
-
-
-            if (
-                currentValue !== "ALL" &&
-                months.some(
-                    ([key]) =>
-                        key === currentValue
-                )
-            ) {
-
-                select.value =
-                    currentValue;
-
-            } else {
-
-                select.value =
-                    "ALL";
-
-            }
-
+        ${months
+            .map(
+                ([key, label]) =>
+                    `
+                    <option value="${escapeHtml(key)}">
+                        ${escapeHtml(label)}
+                    </option>
+                    `
+            )
+            .join("")
         }
-    );
 
+    `;
+
+
+    if (monthFilter) {
+
+        monthFilter.innerHTML =
+            options;
+
+        monthFilter.value =
+            selectedMonth;
+
+    }
+
+
+    if (dashboardMonthFilter) {
+
+        dashboardMonthFilter.innerHTML =
+            options;
+
+        dashboardMonthFilter.value =
+            selectedMonth;
+
+    }
+
+
+    /*
+     * If the previously selected month no longer
+     * exists, safely fall back to ALL.
+     */
+
+    const validMonth =
+        selectedMonth === "ALL" ||
+        months.some(
+            ([key]) =>
+                key === selectedMonth
+        );
+
+
+    if (!validMonth) {
+
+        selectedMonth =
+            "ALL";
+
+        if (monthFilter) {
+            monthFilter.value =
+                "ALL";
+        }
+
+        if (dashboardMonthFilter) {
+            dashboardMonthFilter.value =
+                "ALL";
+        }
+    }
 }
 
 
 /* =========================================================
-   APPLY FILTERS
+   SET MONTH
+   ========================================================= */
+
+function setSelectedMonth(month) {
+
+    selectedMonth =
+        month || "ALL";
+
+
+    const monthFilter =
+        document.getElementById(
+            "month-filter"
+        );
+
+    const dashboardMonthFilter =
+        document.getElementById(
+            "dashboard-month-filter"
+        );
+
+
+    if (monthFilter) {
+
+        monthFilter.value =
+            selectedMonth;
+
+    }
+
+
+    if (dashboardMonthFilter) {
+
+        dashboardMonthFilter.value =
+            selectedMonth;
+
+    }
+
+
+    /*
+     * Re-render both places immediately.
+     */
+
+    renderDashboardArticles();
+
+    applyAllFilters();
+}
+
+
+/* =========================================================
+   APPLY CURRENT AFFAIRS FILTERS
    ========================================================= */
 
 function applyAllFilters() {
@@ -479,7 +519,9 @@ function applyAllFilters() {
         [...articles];
 
 
-    /* MONTH */
+    /*
+     * MONTH
+     */
 
     if (
         selectedMonth !== "ALL"
@@ -497,7 +539,9 @@ function applyAllFilters() {
     }
 
 
-    /* IMPORTANCE */
+    /*
+     * IMPORTANCE
+     */
 
     const importanceFilter =
         document.getElementById(
@@ -552,14 +596,14 @@ function applyAllFilters() {
                         score >= min &&
                         score <= max
                     );
-
                 }
             );
-
     }
 
 
-    /* GS */
+    /*
+     * GS PAPER
+     */
 
     const gsFilter =
         document.getElementById(
@@ -584,11 +628,12 @@ function applyAllFilters() {
                         gs
                     )
             );
-
     }
 
 
-    /* RELEVANCE */
+    /*
+     * RELEVANCE
+     */
 
     const relevanceFilter =
         document.getElementById(
@@ -613,14 +658,12 @@ function applyAllFilters() {
                     ) ===
                     relevance
             );
-
     }
 
 
     renderArticles(
         filtered
     );
-
 }
 
 
@@ -667,24 +710,20 @@ function renderDashboard() {
         relevant
     );
 
-
     setText(
         "total-count",
         total
     );
-
 
     setText(
         "processed-count",
         processed
     );
 
-
     setText(
         "relevant-count",
         relevant
     );
-
 
     setText(
         "important-count",
@@ -693,15 +732,28 @@ function renderDashboard() {
 
 
     renderDashboardArticles();
-
 }
 
 
 /* =========================================================
-   DASHBOARD ARTICLE FILTER
+   DASHBOARD ARTICLES
    ========================================================= */
 
 function renderDashboardArticles() {
+
+    const container =
+        document.getElementById(
+            "recent-articles"
+        );
+
+    if (!container) {
+        return;
+    }
+
+
+    /*
+     * FILTER BY SELECTED MONTH
+     */
 
     let filtered =
         [...articles];
@@ -729,16 +781,10 @@ function renderDashboardArticles() {
         );
 
 
-    const container =
-        document.getElementById(
-            "recent-articles"
-        );
-
-
-    if (!container) {
-        return;
-    }
-
+    /*
+     * UPDATE THE HEADING DIRECTLY
+     * FROM THE SELECTED MONTH.
+     */
 
     const heading =
         document.getElementById(
@@ -767,6 +813,10 @@ function renderDashboardArticles() {
     }
 
 
+    /*
+     * SHOW ONLY SIX ON DASHBOARD
+     */
+
     const recent =
         filtered.slice(
             0,
@@ -774,7 +824,9 @@ function renderDashboardArticles() {
         );
 
 
-    if (recent.length === 0) {
+    if (
+        recent.length === 0
+    ) {
 
         container.innerHTML = `
 
@@ -782,7 +834,15 @@ function renderDashboardArticles() {
                 class="empty-state"
             >
                 No articles found for
-                the selected month.
+                ${
+                    selectedMonth === "ALL"
+                        ? "the selected filters"
+                        : escapeHtml(
+                            getMonthLabelFromKey(
+                                selectedMonth
+                            )
+                        )
+                }.
             </div>
 
         `;
@@ -797,7 +857,6 @@ function renderDashboardArticles() {
                 articleCard
             )
             .join("");
-
 }
 
 
@@ -825,12 +884,6 @@ function articleCard(article) {
     const date =
         getDisplayDate(
             article
-        );
-
-
-    const dateText =
-        formatDate(
-            date
         );
 
 
@@ -868,14 +921,14 @@ function articleCard(article) {
         >
 
             ${
-                dateText
+                date
                     ? `
 
                         <div
                             class="article-date"
                         >
                             ${escapeHtml(
-                                dateText
+                                formatDate(date)
                             )}
                         </div>
 
@@ -900,15 +953,9 @@ function articleCard(article) {
                     .map(
                         gs =>
                             `
-
-                                <span
-                                    class="badge"
-                                >
-                                    ${escapeHtml(
-                                        gs
-                                    )}
-                                </span>
-
+                            <span class="badge">
+                                ${escapeHtml(gs)}
+                            </span>
                             `
                     )
                     .join("")
@@ -918,9 +965,7 @@ function articleCard(article) {
 
 
             <h4>
-                ${escapeHtml(
-                    title
-                )}
+                ${escapeHtml(title)}
             </h4>
 
 
@@ -929,9 +974,7 @@ function articleCard(article) {
                     ? `
 
                         <p>
-                            ${escapeHtml(
-                                summary
-                            )}
+                            ${escapeHtml(summary)}
                         </p>
 
                     `
@@ -949,12 +992,11 @@ function articleCard(article) {
         </article>
 
     `;
-
 }
 
 
 /* =========================================================
-   CURRENT AFFAIRS LIST
+   CURRENT AFFAIRS
    ========================================================= */
 
 function renderArticles(filtered) {
@@ -1085,7 +1127,6 @@ function renderArticles(filtered) {
                 `
             )
             .join("");
-
 }
 
 
@@ -1148,9 +1189,7 @@ function articleListItem(article) {
                                 class="article-date"
                             >
                                 ${escapeHtml(
-                                    formatDate(
-                                        date
-                                    )
+                                    formatDate(date)
                                 )}
                             </div>
 
@@ -1174,15 +1213,9 @@ function articleListItem(article) {
                         .map(
                             gs =>
                                 `
-
-                                    <span
-                                        class="badge"
-                                    >
-                                        ${escapeHtml(
-                                            gs
-                                        )}
-                                    </span>
-
+                                <span class="badge">
+                                    ${escapeHtml(gs)}
+                                </span>
                                 `
                         )
                         .join("")
@@ -1206,9 +1239,7 @@ function articleListItem(article) {
 
                             <p>
                                 ${escapeHtml(
-                                    topics.join(
-                                        " · "
-                                    )
+                                    topics.join(" · ")
                                 )}
                             </p>
 
@@ -1230,7 +1261,6 @@ function articleListItem(article) {
         </article>
 
     `;
-
 }
 
 
@@ -1243,9 +1273,7 @@ function openArticle(id) {
     const article =
         articles.find(
             item =>
-                String(
-                    item.id
-                ) ===
+                String(item.id) ===
                 String(id)
         );
 
@@ -1256,9 +1284,7 @@ function openArticle(id) {
 
 
     const date =
-        getDisplayDate(
-            article
-        );
+        getDisplayDate(article);
 
 
     let html = `
@@ -1266,33 +1292,22 @@ function openArticle(id) {
         ${
             date
                 ? `
-
-                    <div
-                        class="article-date"
-                    >
+                    <div class="article-date">
                         ${escapeHtml(
-                            formatDate(
-                                date
-                            )
+                            formatDate(date)
                         )}
                     </div>
-
                 `
                 : ""
         }
 
 
-        <div
-            class="article-meta"
-        >
+        <div class="article-meta">
 
-            <span
-                class="badge high"
-            >
+            <span class="badge high">
                 Importance
                 ${Number(
-                    article.importance ||
-                    0
+                    article.importance || 0
                 )}/10
             </span>
 
@@ -1308,15 +1323,9 @@ function openArticle(id) {
                     .map(
                         gs =>
                             `
-
-                                <span
-                                    class="badge"
-                                >
-                                    ${escapeHtml(
-                                        gs
-                                    )}
-                                </span>
-
+                            <span class="badge">
+                                ${escapeHtml(gs)}
+                            </span>
                             `
                     )
                     .join("")
@@ -1325,9 +1334,7 @@ function openArticle(id) {
         </div>
 
 
-        <h1
-            class="detail-title"
-        >
+        <h1 class="detail-title">
             ${escapeHtml(
                 article.english_title ||
                 article.title ||
@@ -1339,15 +1346,11 @@ function openArticle(id) {
         ${
             article.english_summary
                 ? `
-
-                    <p
-                        class="detail-summary"
-                    >
+                    <p class="detail-summary">
                         ${escapeHtml(
                             article.english_summary
                         )}
                     </p>
-
                 `
                 : ""
         }
@@ -1396,12 +1399,7 @@ function openArticle(id) {
 
 
     sections.forEach(
-        (
-            [
-                title,
-                values
-            ]
-        ) => {
+        ([title, values]) => {
 
             if (
                 !Array.isArray(values) ||
@@ -1418,11 +1416,8 @@ function openArticle(id) {
                 >
 
                     <h4>
-                        ${escapeHtml(
-                            title
-                        )}
+                        ${escapeHtml(title)}
                     </h4>
-
 
                     <ul>
 
@@ -1430,13 +1425,9 @@ function openArticle(id) {
                             .map(
                                 item =>
                                     `
-
-                                        <li>
-                                            ${escapeHtml(
-                                                item
-                                            )}
-                                        </li>
-
+                                    <li>
+                                        ${escapeHtml(item)}
+                                    </li>
                                     `
                             )
                             .join("")
@@ -1447,7 +1438,6 @@ function openArticle(id) {
                 </div>
 
             `;
-
         }
     );
 
@@ -1456,14 +1446,10 @@ function openArticle(id) {
 
         html += `
 
-            <div
-                class="detail-section"
-            >
+            <div class="detail-section">
 
                 <a
-                    href="${escapeHtml(
-                        article.link
-                    )}"
+                    href="${escapeHtml(article.link)}"
                     target="_blank"
                     rel="noopener noreferrer"
                 >
@@ -1473,7 +1459,6 @@ function openArticle(id) {
             </div>
 
         `;
-
     }
 
 
@@ -1482,7 +1467,6 @@ function openArticle(id) {
             "article-detail"
         );
 
-
     const modal =
         document.getElementById(
             "article-modal"
@@ -1490,10 +1474,7 @@ function openArticle(id) {
 
 
     if (detail) {
-
-        detail.innerHTML =
-            html;
-
+        detail.innerHTML = html;
     }
 
 
@@ -1505,9 +1486,7 @@ function openArticle(id) {
 
         document.body.style.overflow =
             "hidden";
-
     }
-
 }
 
 
@@ -1554,7 +1533,6 @@ function buildFlashcards() {
     currentFlashcard = 0;
 
     renderFlashcard();
-
 }
 
 
@@ -1577,17 +1555,13 @@ function renderFlashcard() {
 
         container.innerHTML = `
 
-            <div
-                class="flashcard"
-            >
+            <div class="flashcard">
 
                 <h3>
                     No flashcards yet
                 </h3>
 
-                <p
-                    class="answer"
-                >
+                <p class="answer">
                     Process more PIB articles
                     to generate revision cards.
                 </p>
@@ -1608,13 +1582,9 @@ function renderFlashcard() {
 
     container.innerHTML = `
 
-        <div
-            class="flashcard"
-        >
+        <div class="flashcard">
 
-            <span
-                class="type"
-            >
+            <span class="type">
                 ${escapeHtml(
                     card.type ||
                     "Concept"
@@ -1624,8 +1594,7 @@ function renderFlashcard() {
 
             <h3>
                 ${escapeHtml(
-                    card.question ||
-                    ""
+                    card.question || ""
                 )}
             </h3>
 
@@ -1636,15 +1605,12 @@ function renderFlashcard() {
                 style="display:none"
             >
                 ${escapeHtml(
-                    card.answer ||
-                    ""
+                    card.answer || ""
                 )}
             </div>
 
 
-            <div
-                class="flashcard-actions"
-            >
+            <div class="flashcard-actions">
 
                 <button
                     type="button"
@@ -1680,7 +1646,6 @@ function renderFlashcard() {
             `${currentFlashcard + 1} / ${flashcards.length}`;
 
     }
-
 }
 
 
@@ -1698,14 +1663,12 @@ function showAnswer() {
             "block";
 
     }
-
 }
 
 
 function nextFlashcard() {
 
     currentFlashcard++;
-
 
     if (
         currentFlashcard >=
@@ -1716,9 +1679,7 @@ function nextFlashcard() {
 
     }
 
-
     renderFlashcard();
-
 }
 
 
@@ -1736,25 +1697,19 @@ function renderRevision() {
                         article.relevant
                     ) &&
                     Number(
-                        article.importance ||
-                        0
+                        article.importance || 0
                     ) >= 7
             )
             .sort(
                 (a, b) =>
                     Number(
-                        b.importance ||
-                        0
+                        b.importance || 0
                     ) -
                     Number(
-                        a.importance ||
-                        0
+                        a.importance || 0
                     )
             )
-            .slice(
-                0,
-                15
-            );
+            .slice(0, 15);
 
 
     const container =
@@ -1777,15 +1732,12 @@ function renderRevision() {
                 .join("")
             : `
 
-                <div
-                    class="empty-state"
-                >
+                <div class="empty-state">
                     No high-priority articles
                     available for revision.
                 </div>
 
             `;
-
 }
 
 
@@ -1801,9 +1753,7 @@ function renderGS(gs) {
                 Array.isArray(
                     article.gs_papers
                 ) &&
-                article.gs_papers.includes(
-                    gs
-                )
+                article.gs_papers.includes(gs)
         );
 
 
@@ -1821,30 +1771,21 @@ function renderGS(gs) {
     container.innerHTML = `
 
         <h3>
-            ${escapeHtml(
-                gs
-            )}
+            ${escapeHtml(gs)}
             Current Affairs
         </h3>
 
 
-        <div
-            class="article-list"
-        >
+        <div class="article-list">
 
-            ${sortNewestFirst(
-                filtered
-            )
-                .map(
-                    articleListItem
-                )
+            ${sortNewestFirst(filtered)
+                .map(articleListItem)
                 .join("")
             }
 
         </div>
 
     `;
-
 }
 
 
@@ -1864,32 +1805,12 @@ if (monthFilter) {
         "change",
         event => {
 
-            selectedMonth =
-                event.target.value ||
-                "ALL";
-
-
-            const dashboardFilter =
-                document.getElementById(
-                    "dashboard-month-filter"
-                );
-
-
-            if (dashboardFilter) {
-
-                dashboardFilter.value =
-                    selectedMonth;
-
-            }
-
-
-            applyAllFilters();
-
-            renderDashboardArticles();
+            setSelectedMonth(
+                event.target.value
+            );
 
         }
     );
-
 }
 
 
@@ -1909,37 +1830,17 @@ if (dashboardMonthFilter) {
         "change",
         event => {
 
-            selectedMonth =
-                event.target.value ||
-                "ALL";
-
-
-            const currentAffairsFilter =
-                document.getElementById(
-                    "month-filter"
-                );
-
-
-            if (currentAffairsFilter) {
-
-                currentAffairsFilter.value =
-                    selectedMonth;
-
-            }
-
-
-            renderDashboardArticles();
-
-            applyAllFilters();
+            setSelectedMonth(
+                event.target.value
+            );
 
         }
     );
-
 }
 
 
 /* =========================================================
-   OTHER FILTER EVENTS
+   OTHER FILTERS
    ========================================================= */
 
 const importanceFilter =
@@ -1947,12 +1848,10 @@ const importanceFilter =
         "importance-filter"
     );
 
-
 const gsFilter =
     document.getElementById(
         "gs-filter"
     );
-
 
 const relevanceFilter =
     document.getElementById(
@@ -1983,9 +1882,7 @@ const relevanceFilter =
    ========================================================= */
 
 document
-    .querySelectorAll(
-        ".nav-item"
-    )
+    .querySelectorAll(".nav-item")
     .forEach(
         button => {
 
@@ -2032,9 +1929,7 @@ document
 function showView(view) {
 
     document
-        .querySelectorAll(
-            ".view"
-        )
+        .querySelectorAll(".view")
         .forEach(
             element =>
                 element.classList.remove(
@@ -2059,15 +1954,12 @@ function showView(view) {
 
 
     document
-        .querySelectorAll(
-            ".nav-item"
-        )
+        .querySelectorAll(".nav-item")
         .forEach(
             button =>
                 button.classList.toggle(
                     "active",
-                    button.dataset.view ===
-                        view
+                    button.dataset.view === view
                 )
         );
 
@@ -2097,18 +1989,15 @@ function showView(view) {
         titles[view] ||
         "Dashboard"
     );
-
 }
 
 
 /* =========================================================
-   GS CARD EVENTS
+   GS EVENTS
    ========================================================= */
 
 document
-    .querySelectorAll(
-        ".gs-card"
-    )
+    .querySelectorAll(".gs-card")
     .forEach(
         card => {
 
@@ -2116,15 +2005,10 @@ document
                 "click",
                 () => {
 
-                    const gs =
-                        card.dataset.gs;
-
-                    showView(
-                        "gs"
-                    );
+                    showView("gs");
 
                     renderGS(
-                        gs
+                        card.dataset.gs
                     );
 
                 }
@@ -2207,39 +2091,17 @@ if (search) {
 
 
                         return (
-
-                            title.includes(
-                                query
-                            )
-
-                            ||
-
-                            summary.includes(
-                                query
-                            )
-
-                            ||
-
-                            raw.includes(
-                                query
-                            )
-
-                            ||
-
-                            topics.includes(
-                                query
-                            )
-
+                            title.includes(query) ||
+                            summary.includes(query) ||
+                            raw.includes(query) ||
+                            topics.includes(query)
                         );
 
                     }
                 );
 
 
-            showView(
-                "articles"
-            );
-
+            showView("articles");
 
             renderArticles(
                 filtered
@@ -2247,7 +2109,6 @@ if (search) {
 
         }
     );
-
 }
 
 
@@ -2267,7 +2128,6 @@ if (closeModal) {
         "click",
         closeArticleModal
     );
-
 }
 
 
@@ -2294,7 +2154,6 @@ if (articleModal) {
 
         }
     );
-
 }
 
 
@@ -2314,9 +2173,7 @@ function closeArticleModal() {
 
         document.body.style.overflow =
             "";
-
     }
-
 }
 
 
@@ -2352,7 +2209,6 @@ if (refreshButton) {
         "click",
         loadArticles
     );
-
 }
 
 
@@ -2366,9 +2222,7 @@ function setText(
 ) {
 
     const element =
-        document.getElementById(
-            id
-        );
+        document.getElementById(id);
 
 
     if (element) {
@@ -2377,13 +2231,10 @@ function setText(
             value;
 
     }
-
 }
 
 
-function showLoadError(
-    message
-) {
+function showLoadError(message) {
 
     const containers = [
 
@@ -2405,19 +2256,14 @@ function showLoadError(
 
                 container.innerHTML = `
 
-                    <div
-                        class="empty-state"
-                    >
-                        ${escapeHtml(
-                            message
-                        )}
+                    <div class="empty-state">
+                        ${escapeHtml(message)}
                     </div>
 
                 `;
 
             }
         );
-
 }
 
 
@@ -2429,7 +2275,6 @@ function escapeHtml(value) {
     ) {
 
         return "";
-
     }
 
 
@@ -2459,7 +2304,6 @@ function escapeHtml(value) {
             "'",
             "&#039;"
         );
-
 }
 
 

@@ -1,16 +1,6 @@
 /* =========================================================
    PIB UPSC — APP.JS
-   Relevant articles only
-   Dynamic month slicer
-   Monthly article grouping
-   Search
-   Flashcards
-   Revision
-   ========================================================= */
-
-
-/* =========================================================
-   SUPABASE
+   Relevant articles + month slicer + PDF download
    ========================================================= */
 
 const SUPABASE_URL =
@@ -32,15 +22,12 @@ const db = createClient(
    ========================================================= */
 
 let articles = [];
-let flashcards = [];
 
-let currentFlashcard = 0;
+let selectedMonth = "ALL";
 
 let lastFetchTime = null;
 
 let isLoading = false;
-
-let selectedMonth = "ALL";
 
 
 /* =========================================================
@@ -74,32 +61,16 @@ function getArticleDate(article) {
 }
 
 
-function getDisplayDate(article) {
+function formatDate(value) {
 
-    const date = getArticleDate(article);
-
-    if (date) {
-        return date;
-    }
-
-    if (lastFetchTime) {
-        return new Date(lastFetchTime);
-    }
-
-    return null;
-}
-
-
-function formatDate(dateValue) {
-
-    if (!dateValue) {
+    if (!value) {
         return "";
     }
 
     const date =
-        dateValue instanceof Date
-            ? dateValue
-            : new Date(dateValue);
+        value instanceof Date
+            ? value
+            : new Date(value);
 
     if (Number.isNaN(date.getTime())) {
         return "";
@@ -119,7 +90,7 @@ function formatDate(dateValue) {
 function getMonthKey(article) {
 
     const date =
-        getDisplayDate(article);
+        getArticleDate(article);
 
     if (!date) {
         return "UNKNOWN";
@@ -131,10 +102,10 @@ function getMonthKey(article) {
 }
 
 
-function getMonthLabelFromKey(key) {
+function getMonthLabel(key) {
 
     if (!key || key === "UNKNOWN") {
-        return "RECENT ARTICLES";
+        return "CURRENT AFFAIRS";
     }
 
     const [year, month] =
@@ -147,15 +118,13 @@ function getMonthLabelFromKey(key) {
             1
         );
 
-    return date
-        .toLocaleDateString(
-            "en-IN",
-            {
-                month: "long",
-                year: "numeric"
-            }
-        )
-        .toUpperCase();
+    return date.toLocaleDateString(
+        "en-IN",
+        {
+            month: "long",
+            year: "numeric"
+        }
+    ).toUpperCase();
 }
 
 
@@ -163,31 +132,61 @@ function getMonthLabelFromKey(key) {
    SORTING
    ========================================================= */
 
-function articleTimestamp(article) {
-
-    const date =
-        getArticleDate(article);
-
-    if (!date) {
-        return 0;
-    }
-
-    return date.getTime();
-}
-
-
 function sortNewestFirst(list) {
 
     return [...list].sort(
-        (a, b) =>
-            articleTimestamp(b) -
-            articleTimestamp(a)
+        (a, b) => {
+
+            const dateA =
+                getArticleDate(a);
+
+            const dateB =
+                getArticleDate(b);
+
+            return (
+                (dateB?.getTime() || 0) -
+                (dateA?.getTime() || 0)
+            );
+        }
     );
 }
 
 
 /* =========================================================
-   LOADING STATE
+   UTILITIES
+   ========================================================= */
+
+function setText(id, value) {
+
+    const element =
+        document.getElementById(id);
+
+    if (element) {
+        element.textContent = value;
+    }
+}
+
+
+function escapeHtml(value) {
+
+    if (
+        value === null ||
+        value === undefined
+    ) {
+        return "";
+    }
+
+    return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+
+/* =========================================================
+   LOADING
    ========================================================= */
 
 function setLoading(loading) {
@@ -237,11 +236,8 @@ function updateLastUpdated() {
         return;
     }
 
-    const date =
-        new Date(lastFetchTime);
-
     element.textContent =
-        `Updated ${date.toLocaleTimeString(
+        `Updated ${lastFetchTime.toLocaleTimeString(
             "en-IN",
             {
                 hour: "2-digit",
@@ -256,23 +252,17 @@ function updateLastUpdated() {
    =========================================================
 
    IMPORTANT:
+   Only relevant=true is filtered here.
 
-   We intentionally fetch ONLY:
+   Importance is NOT used as a global filter.
 
-       relevant = true
-       importance >= 7
+   Therefore if the database contains:
 
-   This means irrelevant / 0-10 articles never enter
-   the frontend at all.
+       70 total
+       44 relevant
+       34 high priority
 
-   Therefore they cannot appear in:
-   - Dashboard
-   - Current Affairs
-   - Search
-   - GS Papers
-   - Revision
-   - Flashcards
-   - Recent articles
+   the application displays all 44 relevant articles.
    ========================================================= */
 
 async function loadArticles() {
@@ -291,8 +281,11 @@ async function loadArticles() {
         } = await db
             .from("articles")
             .select("*")
-            .eq("relevant", true)
-            .gte("importance", 7);
+            .eq(
+                "relevant",
+                true
+            );
+
 
         if (error) {
 
@@ -309,22 +302,14 @@ async function loadArticles() {
         }
 
 
-        /*
-         * Database already filtered the articles.
-         * We do not apply another destructive filter.
-         */
-
         articles =
             Array.isArray(data)
-                ? data
+                ? data.filter(
+                    article =>
+                        article.relevant === true
+                )
                 : [];
 
-
-        /*
-         * Sort newest first on the client.
-         * This also handles articles where published_at
-         * may be missing but another date exists.
-         */
 
         articles =
             sortNewestFirst(
@@ -336,13 +321,12 @@ async function loadArticles() {
             new Date();
 
 
-        /*
-         * Rebuild all dependent UI.
-         */
+        console.log(
+            `Loaded ${articles.length} relevant articles`
+        );
+
 
         buildMonthSlicer();
-
-        buildFlashcards();
 
         renderDashboard();
 
@@ -351,15 +335,6 @@ async function loadArticles() {
         renderRevision();
 
         updateLastUpdated();
-
-
-        /*
-         * Optional debug information.
-         */
-
-        console.log(
-            `Loaded ${articles.length} relevant articles.`
-        );
 
     } catch (error) {
 
@@ -394,9 +369,6 @@ function buildMonthSlicer() {
         return;
     }
 
-    const oldValue =
-        selectedMonth;
-
 
     const monthMap =
         new Map();
@@ -416,17 +388,10 @@ function buildMonthSlicer() {
                 return;
             }
 
-            if (
-                !monthMap.has(key)
-            ) {
-
-                monthMap.set(
-                    key,
-                    getMonthLabelFromKey(
-                        key
-                    )
-                );
-            }
+            monthMap.set(
+                key,
+                getMonthLabel(key)
+            );
         }
     );
 
@@ -436,10 +401,7 @@ function buildMonthSlicer() {
             monthMap.entries()
         )
         .sort(
-            (
-                a,
-                b
-            ) =>
+            (a, b) =>
                 b[0].localeCompare(
                     a[0]
                 )
@@ -447,69 +409,60 @@ function buildMonthSlicer() {
 
 
     select.innerHTML = `
+
         <option value="ALL">
             All Months
         </option>
 
-        ${months
-            .map(
-                (
-                    [key, label]
-                ) => `
-                    <option value="${key}">
-                        ${escapeHtml(label)}
-                    </option>
-                `
-            )
-            .join("")
+        ${
+            months
+                .map(
+                    (
+                        [key, label]
+                    ) => `
+                        <option value="${escapeHtml(key)}">
+                            ${escapeHtml(label)}
+                        </option>
+                    `
+                )
+                .join("")
         }
+
     `;
 
 
-    const exists =
+    if (
         months.some(
             ([key]) =>
-                key === oldValue
-        );
-
-
-    if (
-        oldValue !== "ALL" &&
-        exists
+                key === selectedMonth
+        )
     ) {
 
         select.value =
-            oldValue;
+            selectedMonth;
 
     } else {
 
-        select.value =
+        selectedMonth =
             "ALL";
 
-        selectedMonth =
+        select.value =
             "ALL";
     }
 }
 
 
 /* =========================================================
-   APPLY ALL FILTERS
+   FILTERS
    ========================================================= */
 
 function applyAllFilters() {
-
-    /*
-     * articles already contains ONLY relevant/high-priority
-     * articles.
-     */
 
     let filtered =
         [...articles];
 
 
-    /* -----------------------------------------------------
-       MONTH
-       ----------------------------------------------------- */
+    /* MONTH */
 
     if (
         selectedMonth !== "ALL"
@@ -518,22 +471,19 @@ function applyAllFilters() {
         filtered =
             filtered.filter(
                 article =>
-                    getMonthKey(
-                        article
-                    ) ===
+                    getMonthKey(article) ===
                     selectedMonth
             );
     }
 
 
-    /* -----------------------------------------------------
-       IMPORTANCE
-       ----------------------------------------------------- */
+    /* IMPORTANCE */
 
     const importanceFilter =
         document.getElementById(
             "importance-filter"
         );
+
 
     const importance =
         importanceFilter
@@ -544,53 +494,46 @@ function applyAllFilters() {
     if (importance) {
 
         const min =
-            Number(
-                importance
-            );
+            Number(importance);
 
         let max;
 
         if (min === 9) {
-
             max = 10;
-
         } else if (min === 7) {
-
             max = 8;
-
         } else if (min === 4) {
-
             max = 6;
-
         } else {
-
             max = 3;
         }
 
 
         filtered =
             filtered.filter(
-                article =>
-                    (
-                        article.importance ||
-                        0
-                    ) >= min &&
-                    (
-                        article.importance ||
-                        0
-                    ) <= max
+                article => {
+
+                    const score =
+                        Number(
+                            article.importance || 0
+                        );
+
+                    return (
+                        score >= min &&
+                        score <= max
+                    );
+                }
             );
     }
 
 
-    /* -----------------------------------------------------
-       GS PAPER
-       ----------------------------------------------------- */
+    /* GS */
 
     const gsFilter =
         document.getElementById(
             "gs-filter"
         );
+
 
     const gs =
         gsFilter
@@ -611,20 +554,13 @@ function applyAllFilters() {
     }
 
 
-    /* -----------------------------------------------------
-       RELEVANCE
-       -----------------------------------------------------
-
-       Relevance is already true for everything loaded.
-
-       If an existing relevance filter exists, we keep it
-       compatible rather than allowing false articles back.
-       ----------------------------------------------------- */
+    /* RELEVANCE */
 
     const relevanceFilter =
         document.getElementById(
             "relevance-filter"
         );
+
 
     const relevance =
         relevanceFilter
@@ -658,11 +594,6 @@ function applyAllFilters() {
 
 function renderDashboard() {
 
-    /*
-     * Since articles already contains only relevant articles,
-     * these numbers are now based on the relevant knowledge base.
-     */
-
     const total =
         articles.length;
 
@@ -681,63 +612,35 @@ function renderDashboard() {
     const important =
         articles.filter(
             article =>
-                (
-                    article.importance ||
-                    0
+                Number(
+                    article.importance || 0
                 ) >= 7
         ).length;
 
 
     setText(
         "hero-count",
-        relevant
+        total
     );
-
 
     setText(
         "total-count",
         total
     );
 
-
     setText(
         "processed-count",
         processed
     );
-
 
     setText(
         "relevant-count",
         relevant
     );
 
-
     setText(
         "important-count",
         important
-    );
-
-
-    /*
-     * Some versions of the UI use different IDs.
-     * Update those if present.
-     */
-
-    setText(
-        "hero-relevant-count",
-        relevant
-    );
-
-
-    setText(
-        "relevant-articles-count",
-        relevant
-    );
-
-
-    setText(
-        "avg-importance",
-        calculateAverageImportance()
     );
 
 
@@ -766,32 +669,6 @@ function renderDashboard() {
 }
 
 
-function calculateAverageImportance() {
-
-    if (!articles.length) {
-        return 0;
-    }
-
-    const total =
-        articles.reduce(
-            (
-                sum,
-                article
-            ) =>
-                sum +
-                Number(
-                    article.importance || 0
-                ),
-            0
-        );
-
-    return Math.round(
-        total /
-        articles.length
-    );
-}
-
-
 /* =========================================================
    ARTICLE CARD
    ========================================================= */
@@ -799,7 +676,9 @@ function calculateAverageImportance() {
 function articleCard(article) {
 
     const importance =
-        article.importance || 0;
+        Number(
+            article.importance || 0
+        );
 
 
     const priority =
@@ -811,35 +690,28 @@ function articleCard(article) {
 
 
     const date =
-        getDisplayDate(
+        getArticleDate(
             article
         );
 
 
-    const dateText =
-        formatDate(
-            date
-        );
-
-
     return `
+
         <article class="article-card">
 
-            ${
-                dateText
-                    ? `
-                        <div class="article-date">
-                            ${dateText}
-                        </div>
-                    `
-                    : ""
-            }
+            <div class="article-date">
+                ${escapeHtml(
+                    formatDate(date)
+                )}
+            </div>
+
 
             <div class="article-meta">
 
                 <span class="badge ${priority}">
                     ${importance}/10
                 </span>
+
 
                 ${
                     (
@@ -851,12 +723,11 @@ function articleCard(article) {
                             2
                         )
                         .map(
-                            gs =>
-                                `
+                            gs => `
                                 <span class="badge">
                                     ${escapeHtml(gs)}
                                 </span>
-                                `
+                            `
                         )
                         .join("")
                 }
@@ -891,16 +762,18 @@ function articleCard(article) {
 
             <button
                 type="button"
-                onclick="
-                    openArticle(
-                        ${JSON.stringify(article.id)}
-                    )
-                "
+                onclick="openArticle('${String(
+                    article.id
+                ).replaceAll(
+                    "'",
+                    "\\'"
+                )}')"
             >
                 Read analysis →
             </button>
 
         </article>
+
     `;
 }
 
@@ -909,7 +782,9 @@ function articleCard(article) {
    ARTICLE LIST
    ========================================================= */
 
-function renderArticles(filtered) {
+function renderArticles(
+    filtered
+) {
 
     const container =
         document.getElementById(
@@ -923,19 +798,14 @@ function renderArticles(filtered) {
 
 
     /*
-     * Extra safety:
-     * Even though Supabase already filters the data,
-     * never allow an irrelevant article into the UI.
+     * Final safety check.
      */
 
     filtered =
         (filtered || [])
             .filter(
                 article =>
-                    article.relevant === true &&
-                    Number(
-                        article.importance || 0
-                    ) >= 7
+                    article.relevant === true
             );
 
 
@@ -944,10 +814,14 @@ function renderArticles(filtered) {
     ) {
 
         container.innerHTML = `
+
             <div class="empty-state">
-                No relevant articles found for
-                the selected filters.
+
+                No relevant articles found
+                for the selected filters.
+
             </div>
+
         `;
 
         return;
@@ -960,10 +834,6 @@ function renderArticles(filtered) {
         );
 
 
-    /*
-     * Group by month.
-     */
-
     const groups =
         new Map();
 
@@ -972,9 +842,7 @@ function renderArticles(filtered) {
         article => {
 
             const key =
-                getMonthKey(
-                    article
-                );
+                getMonthKey(article);
 
 
             if (
@@ -990,26 +858,18 @@ function renderArticles(filtered) {
 
             groups
                 .get(key)
-                .push(
-                    article
-                );
+                .push(article);
+
         }
     );
 
-
-    /*
-     * Sort month groups newest first.
-     */
 
     const sortedGroups =
         Array.from(
             groups.entries()
         )
         .sort(
-            (
-                a,
-                b
-            ) =>
+            (a, b) =>
                 b[0].localeCompare(
                     a[0]
                 )
@@ -1031,9 +891,7 @@ function renderArticles(filtered) {
                         <div class="month-heading">
 
                             ${escapeHtml(
-                                getMonthLabelFromKey(
-                                    key
-                                )
+                                getMonthLabel(key)
                             )}
 
                         </div>
@@ -1041,11 +899,12 @@ function renderArticles(filtered) {
 
                         <div class="article-list">
 
-                            ${monthArticles
-                                .map(
-                                    articleListItem
-                                )
-                                .join("")
+                            ${
+                                monthArticles
+                                    .map(
+                                        articleListItem
+                                    )
+                                    .join("")
                             }
 
                         </div>
@@ -1064,22 +923,17 @@ function renderArticles(filtered) {
 
 function articleListItem(article) {
 
-    /*
-     * Never render irrelevant articles.
-     */
-
     if (
-        article.relevant !== true ||
-        Number(
-            article.importance || 0
-        ) < 7
+        article.relevant !== true
     ) {
         return "";
     }
 
 
     const importance =
-        article.importance || 0;
+        Number(
+            article.importance || 0
+        );
 
 
     const priority =
@@ -1091,25 +945,24 @@ function articleListItem(article) {
 
 
     const date =
-        getDisplayDate(
+        getArticleDate(
             article
         );
 
 
     return `
+
         <article class="list-item">
 
             <div>
 
-                ${
-                    date
-                        ? `
-                            <div class="article-date">
-                                ${formatDate(date)}
-                            </div>
-                        `
-                        : ""
-                }
+                <div class="article-date">
+
+                    ${escapeHtml(
+                        formatDate(date)
+                    )}
+
+                </div>
 
 
                 <div class="article-meta">
@@ -1125,12 +978,11 @@ function articleListItem(article) {
                             []
                         )
                             .map(
-                                gs =>
-                                    `
+                                gs => `
                                     <span class="badge">
                                         ${escapeHtml(gs)}
                                     </span>
-                                    `
+                                `
                             )
                             .join("")
                     }
@@ -1152,7 +1004,9 @@ function articleListItem(article) {
                         (
                             article.topics ||
                             []
-                        ).join(" · ")
+                        ).join(
+                            " · "
+                        )
                     )}
                 </p>
 
@@ -1162,16 +1016,18 @@ function articleListItem(article) {
             <button
                 type="button"
                 class="text-button"
-                onclick="
-                    openArticle(
-                        ${JSON.stringify(article.id)}
-                    )
-                "
+                onclick="openArticle('${String(
+                    article.id
+                ).replaceAll(
+                    "'",
+                    "\\'"
+                )}')"
             >
                 Read →
             </button>
 
         </article>
+
     `;
 }
 
@@ -1192,40 +1048,27 @@ function openArticle(id) {
         );
 
 
-    /*
-     * Since only relevant articles are loaded,
-     * this automatically prevents irrelevant articles
-     * from being opened.
-     */
-
     if (
         !article ||
-        article.relevant !== true ||
-        Number(
-            article.importance || 0
-        ) < 7
+        article.relevant !== true
     ) {
         return;
     }
 
 
     const date =
-        getDisplayDate(
+        getArticleDate(
             article
         );
 
 
     let html = `
 
-        ${
-            date
-                ? `
-                    <div class="article-date">
-                        ${formatDate(date)}
-                    </div>
-                `
-                : ""
-        }
+        <div class="article-date">
+            ${escapeHtml(
+                formatDate(date)
+            )}
+        </div>
 
 
         <div class="article-meta">
@@ -1242,12 +1085,11 @@ function openArticle(id) {
                     []
                 )
                     .map(
-                        gs =>
-                            `
+                        gs => `
                             <span class="badge">
                                 ${escapeHtml(gs)}
                             </span>
-                            `
+                        `
                     )
                     .join("")
             }
@@ -1346,16 +1188,16 @@ function openArticle(id) {
 
                     <ul>
 
-                        ${values
-                            .map(
-                                item =>
+                        ${
+                            values
+                                .map(
+                                    item => `
+                                        <li>
+                                            ${escapeHtml(item)}
+                                        </li>
                                     `
-                                    <li>
-                                        ${escapeHtml(item)}
-                                    </li>
-                                    `
-                            )
-                            .join("")
+                                )
+                                .join("")
                         }
 
                     </ul>
@@ -1400,228 +1242,16 @@ function openArticle(id) {
 
 
     if (detail) {
-
         detail.innerHTML =
             html;
     }
 
 
     if (modal) {
-
         modal.classList.remove(
             "hidden"
         );
     }
-}
-
-
-/* =========================================================
-   FLASHCARDS
-   ========================================================= */
-
-function buildFlashcards() {
-
-    flashcards = [];
-
-
-    articles.forEach(
-        article => {
-
-            /*
-             * Extra safety.
-             */
-
-            if (
-                article.relevant !== true ||
-                Number(
-                    article.importance || 0
-                ) < 7
-            ) {
-                return;
-            }
-
-
-            if (
-                !Array.isArray(
-                    article.flashcards
-                )
-            ) {
-                return;
-            }
-
-
-            article.flashcards.forEach(
-                card => {
-
-                    flashcards.push({
-
-                        ...card,
-
-                        article:
-                            article.english_title ||
-                            article.title
-
-                    });
-
-                }
-            );
-
-        }
-    );
-
-
-    currentFlashcard = 0;
-
-    renderFlashcard();
-}
-
-
-function renderFlashcard() {
-
-    const container =
-        document.getElementById(
-            "flashcard-container"
-        );
-
-
-    if (!container) {
-        return;
-    }
-
-
-    if (
-        flashcards.length === 0
-    ) {
-
-        container.innerHTML = `
-
-            <div class="flashcard">
-
-                <h3>
-                    No flashcards yet
-                </h3>
-
-                <p class="answer">
-                    Process more relevant PIB
-                    articles to generate
-                    revision cards.
-                </p>
-
-            </div>
-
-        `;
-
-        return;
-    }
-
-
-    const card =
-        flashcards[
-            currentFlashcard
-        ];
-
-
-    container.innerHTML = `
-
-        <div class="flashcard">
-
-            <span class="type">
-                ${escapeHtml(
-                    card.type ||
-                    "Concept"
-                )}
-            </span>
-
-
-            <h3>
-                ${escapeHtml(
-                    card.question ||
-                    ""
-                )}
-            </h3>
-
-
-            <div
-                id="flash-answer"
-                class="answer"
-                style="display:none"
-            >
-                ${escapeHtml(
-                    card.answer ||
-                    ""
-                )}
-            </div>
-
-
-            <div class="flashcard-actions">
-
-                <button
-                    type="button"
-                    onclick="showAnswer()"
-                >
-                    Show answer
-                </button>
-
-
-                <button
-                    type="button"
-                    onclick="nextFlashcard()"
-                >
-                    Next →
-                </button>
-
-            </div>
-
-        </div>
-
-    `;
-
-
-    const progress =
-        document.getElementById(
-            "flashcard-progress"
-        );
-
-
-    if (progress) {
-
-        progress.textContent =
-            `${currentFlashcard + 1} / ${flashcards.length}`;
-    }
-}
-
-
-function showAnswer() {
-
-    const answer =
-        document.getElementById(
-            "flash-answer"
-        );
-
-
-    if (answer) {
-
-        answer.style.display =
-            "block";
-    }
-}
-
-
-function nextFlashcard() {
-
-    currentFlashcard++;
-
-
-    if (
-        currentFlashcard >=
-        flashcards.length
-    ) {
-
-        currentFlashcard = 0;
-    }
-
-
-    renderFlashcard();
 }
 
 
@@ -1636,23 +1266,17 @@ function renderRevision() {
             .filter(
                 article =>
                     article.relevant === true &&
-                    (
-                        article.importance ||
-                        0
+                    Number(
+                        article.importance || 0
                     ) >= 7
             )
             .sort(
-                (
-                    a,
-                    b
-                ) =>
-                    (
-                        b.importance ||
-                        0
+                (a, b) =>
+                    Number(
+                        b.importance || 0
                     ) -
-                    (
-                        a.importance ||
-                        0
+                    Number(
+                        a.importance || 0
                     )
             )
             .slice(
@@ -1682,18 +1306,17 @@ function renderRevision() {
 
 
 /* =========================================================
-   GS PAPERS
+   GS
    ========================================================= */
 
-function renderGS(gs) {
+function renderGS(
+    gs
+) {
 
     const filtered =
         articles.filter(
             article =>
                 article.relevant === true &&
-                Number(
-                    article.importance || 0
-                ) >= 7 &&
                 (
                     article.gs_papers ||
                     []
@@ -1722,13 +1345,14 @@ function renderGS(gs) {
 
         <div class="article-list">
 
-            ${sortNewestFirst(
-                filtered
-            )
-                .map(
-                    articleListItem
+            ${
+                sortNewestFirst(
+                    filtered
                 )
-                .join("")
+                    .map(
+                        articleListItem
+                    )
+                    .join("")
             }
 
         </div>
@@ -1738,111 +1362,111 @@ function renderGS(gs) {
 
 
 /* =========================================================
-   FILTER EVENTS
+   SEARCH
    ========================================================= */
 
-const monthFilter =
+const search =
     document.getElementById(
-        "month-filter"
+        "global-search"
     );
 
 
-if (monthFilter) {
+if (search) {
 
-    monthFilter.addEventListener(
-        "change",
+    search.addEventListener(
+        "input",
         event => {
 
-            selectedMonth =
-                event.target.value ||
-                "ALL";
+            const query =
+                event.target.value
+                    .toLowerCase()
+                    .trim();
 
-            applyAllFilters();
+
+            if (!query) {
+
+                applyAllFilters();
+
+                return;
+            }
+
+
+            const filtered =
+                articles.filter(
+                    article => {
+
+                        if (
+                            article.relevant !== true
+                        ) {
+                            return false;
+                        }
+
+
+                        const title =
+                            (
+                                article.english_title ||
+                                article.title ||
+                                ""
+                            )
+                                .toLowerCase();
+
+
+                        const summary =
+                            (
+                                article.english_summary ||
+                                ""
+                            )
+                                .toLowerCase();
+
+
+                        const raw =
+                            (
+                                article.raw_text ||
+                                ""
+                            )
+                                .toLowerCase();
+
+
+                        const topics =
+                            (
+                                article.topics ||
+                                []
+                            )
+                                .join(" ")
+                                .toLowerCase();
+
+
+                        return (
+                            title.includes(query) ||
+                            summary.includes(query) ||
+                            raw.includes(query) ||
+                            topics.includes(query)
+                        );
+                    }
+                );
+
+
+            showView(
+                "articles"
+            );
+
+
+            renderArticles(
+                filtered
+            );
 
         }
     );
 }
 
 
-const importanceFilter =
-    document.getElementById(
-        "importance-filter"
-    );
-
-
-const gsFilter =
-    document.getElementById(
-        "gs-filter"
-    );
-
-
-const relevanceFilter =
-    document.getElementById(
-        "relevance-filter"
-    );
-
-
-[
-    importanceFilter,
-    gsFilter,
-    relevanceFilter
-]
-    .filter(Boolean)
-    .forEach(
-        element => {
-
-            element.addEventListener(
-                "change",
-                applyAllFilters
-            );
-
-        }
-    );
-
-
 /* =========================================================
    NAVIGATION
    ========================================================= */
 
-document
-    .querySelectorAll(
-        ".nav-item"
-    )
-    .forEach(
-        button => {
-
-            button.addEventListener(
-                "click",
-                () =>
-                    showView(
-                        button.dataset.view
-                    )
-            );
-
-        }
-    );
-
-
-document
-    .querySelectorAll(
-        "[data-view]"
-    )
-    .forEach(
-        button => {
-
-            button.addEventListener(
-                "click",
-                () =>
-                    showView(
-                        button.dataset.view
-                    )
-            );
-
-        }
-    );
-
-
-function showView(view) {
+function showView(
+    view
+) {
 
     document
         .querySelectorAll(
@@ -1912,126 +1536,100 @@ function showView(view) {
 }
 
 
-/* =========================================================
-   SEARCH
-   ========================================================= */
+document
+    .querySelectorAll(
+        ".nav-item"
+    )
+    .forEach(
+        button => {
 
-const search =
-    document.getElementById(
-        "global-search"
+            button.addEventListener(
+                "click",
+                () =>
+                    showView(
+                        button.dataset.view
+                    )
+            );
+
+        }
     );
 
 
-if (search) {
+/* =========================================================
+   FILTER EVENTS
+   ========================================================= */
 
-    search.addEventListener(
-        "input",
+const monthFilter =
+    document.getElementById(
+        "month-filter"
+    );
+
+
+if (monthFilter) {
+
+    monthFilter.addEventListener(
+        "change",
         event => {
 
-            const query =
-                event.target.value
-                    .toLowerCase()
-                    .trim();
+            selectedMonth =
+                event.target.value ||
+                "ALL";
 
-
-            if (!query) {
-
-                applyAllFilters();
-
-                return;
-            }
-
-
-            /*
-             * Search ONLY the already-filtered
-             * relevant knowledge base.
-             */
-
-            const filtered =
-                articles.filter(
-                    article => {
-
-                        if (
-                            article.relevant !== true ||
-                            Number(
-                                article.importance || 0
-                            ) < 7
-                        ) {
-                            return false;
-                        }
-
-
-                        const title =
-                            (
-                                article.english_title ||
-                                article.title ||
-                                ""
-                            )
-                                .toLowerCase();
-
-
-                        const summary =
-                            (
-                                article.english_summary ||
-                                ""
-                            )
-                                .toLowerCase();
-
-
-                        const raw =
-                            (
-                                article.raw_text ||
-                                ""
-                            )
-                                .toLowerCase();
-
-
-                        const topics =
-                            (
-                                article.topics ||
-                                []
-                            )
-                                .join(" ")
-                                .toLowerCase();
-
-
-                        return (
-
-                            title.includes(query)
-
-                            ||
-
-                            summary.includes(query)
-
-                            ||
-
-                            raw.includes(query)
-
-                            ||
-
-                            topics.includes(query)
-
-                        );
-                    }
-                );
-
-
-            showView(
-                "articles"
-            );
-
-
-            renderArticles(
-                filtered
-            );
+            applyAllFilters();
 
         }
     );
 }
 
 
+[
+    "importance-filter",
+    "gs-filter",
+    "relevance-filter"
+]
+.forEach(
+    id => {
+
+        const element =
+            document.getElementById(
+                id
+            );
+
+
+        if (element) {
+
+            element.addEventListener(
+                "change",
+                applyAllFilters
+            );
+
+        }
+
+    }
+);
+
+
 /* =========================================================
-   MODAL
+   REFRESH
+   ========================================================= */
+
+const refreshButton =
+    document.getElementById(
+        "refresh-btn"
+    );
+
+
+if (refreshButton) {
+
+    refreshButton.addEventListener(
+        "click",
+        loadArticles
+    );
+}
+
+
+/* =========================================================
+   MODAL CLOSE
    ========================================================= */
 
 const closeModal =
@@ -2057,6 +1655,7 @@ if (closeModal) {
                 modal.classList.add(
                     "hidden"
                 );
+
             }
 
         }
@@ -2085,6 +1684,7 @@ if (articleModal) {
                     .classList.add(
                         "hidden"
                     );
+
             }
 
         }
@@ -2093,114 +1693,1137 @@ if (articleModal) {
 
 
 /* =========================================================
-   REFRESH
+   PDF — GET ARTICLES
    ========================================================= */
 
-const refreshButton =
-    document.getElementById(
-        "refresh-btn"
-    );
+function getArticlesForPDF() {
+
+    let result =
+        articles.filter(
+            article =>
+                article.relevant === true
+        );
 
 
-if (refreshButton) {
+    /*
+     * Respect selected month.
+     */
 
-    refreshButton.addEventListener(
-        "click",
-        loadArticles
+    if (
+        selectedMonth !== "ALL"
+    ) {
+
+        result =
+            result.filter(
+                article =>
+                    getMonthKey(article) ===
+                    selectedMonth
+            );
+    }
+
+
+    /*
+     * Respect selected GS filter.
+     */
+
+    const gsFilter =
+        document.getElementById(
+            "gs-filter"
+        );
+
+
+    if (
+        gsFilter &&
+        gsFilter.value
+    ) {
+
+        result =
+            result.filter(
+                article =>
+                    (
+                        article.gs_papers ||
+                        []
+                    ).includes(
+                        gsFilter.value
+                    )
+            );
+    }
+
+
+    /*
+     * Respect importance filter.
+     */
+
+    const importanceFilter =
+        document.getElementById(
+            "importance-filter"
+        );
+
+
+    if (
+        importanceFilter &&
+        importanceFilter.value
+    ) {
+
+        const min =
+            Number(
+                importanceFilter.value
+            );
+
+
+        let max;
+
+
+        if (min === 9) {
+
+            max = 10;
+
+        } else if (min === 7) {
+
+            max = 8;
+
+        } else if (min === 4) {
+
+            max = 6;
+
+        } else {
+
+            max = 3;
+        }
+
+
+        result =
+            result.filter(
+                article => {
+
+                    const score =
+                        Number(
+                            article.importance || 0
+                        );
+
+
+                    return (
+                        score >= min &&
+                        score <= max
+                    );
+
+                }
+            );
+    }
+
+
+    return sortNewestFirst(
+        result
     );
 }
 
 
 /* =========================================================
-   UTILITIES
+   PDF — ARTICLE HTML
    ========================================================= */
 
-function setText(
-    id,
-    value
+function createPDFArticle(
+    article
 ) {
 
-    const element =
-        document.getElementById(
-            id
+    const date =
+        getArticleDate(
+            article
         );
 
 
-    if (element) {
-
-        element.textContent =
-            value;
-    }
-}
+    const title =
+        article.english_title ||
+        article.title ||
+        "Untitled Article";
 
 
-function showLoadError(message) {
+    const summary =
+        article.english_summary ||
+        article.summary ||
+        "";
 
-    const container =
-        document.getElementById(
-            "articles-list"
+
+    const importance =
+        Number(
+            article.importance || 0
         );
 
 
-    if (container) {
+    const gsPapers =
+        Array.isArray(
+            article.gs_papers
+        )
+            ? article.gs_papers
+            : [];
 
-        container.innerHTML = `
 
-            <div class="empty-state">
+    let html = `
 
+        <article class="pdf-article">
+
+            <div class="pdf-date">
                 ${escapeHtml(
-                    message
+                    formatDate(date)
                 )}
+            </div>
+
+
+            <h2 class="pdf-title">
+                ${escapeHtml(title)}
+            </h2>
+
+
+            <div class="pdf-meta">
+
+                Importance:
+                <strong>
+                    ${importance}/10
+                </strong>
+
+                ${
+                    gsPapers.length
+                        ? `
+                            &nbsp; • &nbsp;
+                            ${escapeHtml(
+                                gsPapers.join(", ")
+                            )}
+                        `
+                        : ""
+                }
+
+            </div>
+
+
+            ${
+                summary
+                    ? `
+                        <div class="pdf-section">
+
+                            <h3>
+                                Summary
+                            </h3>
+
+                            <p>
+                                ${escapeHtml(summary)}
+                            </p>
+
+                        </div>
+                    `
+                    : ""
+            }
+
+    `;
+
+
+    if (
+        Array.isArray(
+            article.prelims_facts
+        ) &&
+        article.prelims_facts.length
+    ) {
+
+        html += `
+
+            <div class="pdf-section">
+
+                <h3>
+                    Prelims Facts
+                </h3>
+
+                <ul>
+
+                    ${
+                        article.prelims_facts
+                            .map(
+                                item =>
+                                    `
+                                    <li>
+                                        ${escapeHtml(
+                                            item
+                                        )}
+                                    </li>
+                                    `
+                            )
+                            .join("")
+                    }
+
+                </ul>
 
             </div>
 
         `;
     }
-}
 
-
-function escapeHtml(value) {
 
     if (
-        value === null ||
-        value === undefined
+        Array.isArray(
+            article.mains_notes
+        ) &&
+        article.mains_notes.length
     ) {
 
-        return "";
+        html += `
+
+            <div class="pdf-section">
+
+                <h3>
+                    Mains Notes
+                </h3>
+
+                <ul>
+
+                    ${
+                        article.mains_notes
+                            .map(
+                                item =>
+                                    `
+                                    <li>
+                                        ${escapeHtml(
+                                            item
+                                        )}
+                                    </li>
+                                    `
+                            )
+                            .join("")
+                    }
+
+                </ul>
+
+            </div>
+
+        `;
     }
 
 
-    return String(value)
+    if (
+        Array.isArray(
+            article.data_points
+        ) &&
+        article.data_points.length
+    ) {
 
-        .replaceAll(
-            "&",
-            "&amp;"
-        )
+        html += `
 
-        .replaceAll(
-            "<",
-            "&lt;"
-        )
+            <div class="pdf-section">
 
-        .replaceAll(
-            ">",
-            "&gt;"
-        )
+                <h3>
+                    Important Data
+                </h3>
 
-        .replaceAll(
-            '"',
-            "&quot;"
-        )
+                <ul>
 
-        .replaceAll(
-            "'",
-            "&#039;"
+                    ${
+                        article.data_points
+                            .map(
+                                item =>
+                                    `
+                                    <li>
+                                        ${escapeHtml(
+                                            item
+                                        )}
+                                    </li>
+                                    `
+                            )
+                            .join("")
+                    }
+
+                </ul>
+
+            </div>
+
+        `;
+    }
+
+
+    if (
+        Array.isArray(
+            article.schemes
+        ) &&
+        article.schemes.length
+    ) {
+
+        html += `
+
+            <div class="pdf-section">
+
+                <h3>
+                    Schemes / Programmes
+                </h3>
+
+                <ul>
+
+                    ${
+                        article.schemes
+                            .map(
+                                item =>
+                                    `
+                                    <li>
+                                        ${escapeHtml(
+                                            item
+                                        )}
+                                    </li>
+                                    `
+                            )
+                            .join("")
+                    }
+
+                </ul>
+
+            </div>
+
+        `;
+    }
+
+
+    if (
+        Array.isArray(
+            article.institutions
+        ) &&
+        article.institutions.length
+    ) {
+
+        html += `
+
+            <div class="pdf-section">
+
+                <h3>
+                    Institutions
+                </h3>
+
+                <ul>
+
+                    ${
+                        article.institutions
+                            .map(
+                                item =>
+                                    `
+                                    <li>
+                                        ${escapeHtml(
+                                            item
+                                        )}
+                                    </li>
+                                    `
+                            )
+                            .join("")
+                    }
+
+                </ul>
+
+            </div>
+
+        `;
+    }
+
+
+    if (
+        Array.isArray(
+            article.implications
+        ) &&
+        article.implications.length
+    ) {
+
+        html += `
+
+            <div class="pdf-section">
+
+                <h3>
+                    Implications
+                </h3>
+
+                <ul>
+
+                    ${
+                        article.implications
+                            .map(
+                                item =>
+                                    `
+                                    <li>
+                                        ${escapeHtml(
+                                            item
+                                        )}
+                                    </li>
+                                    `
+                            )
+                            .join("")
+                    }
+
+                </ul>
+
+            </div>
+
+        `;
+    }
+
+
+    html += `
+
+        </article>
+
+    `;
+
+
+    return html;
+}
+
+
+/* =========================================================
+   PDF — GENERATE
+   ========================================================= */
+
+function downloadPDF() {
+
+    const pdfArticles =
+        getArticlesForPDF();
+
+
+    if (
+        pdfArticles.length === 0
+    ) {
+
+        alert(
+            "No relevant articles are available for the selected filters."
         );
+
+        return;
+    }
+
+
+    /*
+     * Open immediately from button click.
+     * This avoids popup blocking.
+     */
+
+    const printWindow =
+        window.open(
+            "",
+            "_blank"
+        );
+
+
+    if (!printWindow) {
+
+        alert(
+            "Please allow pop-ups for this website and try again."
+        );
+
+        return;
+    }
+
+
+    const monthGroups =
+        new Map();
+
+
+    pdfArticles.forEach(
+        article => {
+
+            const month =
+                getMonthKey(
+                    article
+                );
+
+
+            if (
+                !monthGroups.has(month)
+            ) {
+
+                monthGroups.set(
+                    month,
+                    []
+                );
+            }
+
+
+            monthGroups
+                .get(month)
+                .push(
+                    article
+                );
+
+        }
+    );
+
+
+    let articlesHTML = "";
+
+
+    Array.from(
+        monthGroups.entries()
+    )
+        .sort(
+            (a, b) =>
+                b[0].localeCompare(
+                    a[0]
+                )
+        )
+        .forEach(
+            (
+                [
+                    month,
+                    monthArticles
+                ]
+            ) => {
+
+                articlesHTML += `
+
+                    <div
+                        class="month-heading"
+                    >
+
+                        ${escapeHtml(
+                            getMonthLabel(month)
+                        )}
+
+                    </div>
+
+                `;
+
+
+                monthArticles.forEach(
+                    article => {
+
+                        articlesHTML +=
+                            createPDFArticle(
+                                article
+                            );
+
+                    }
+                );
+
+            }
+        );
+
+
+    const monthLabel =
+        selectedMonth === "ALL"
+            ? "All Months"
+            : getMonthLabel(
+                selectedMonth
+            );
+
+
+    const documentHTML = `
+
+        <!DOCTYPE html>
+
+        <html>
+
+        <head>
+
+            <meta charset="UTF-8">
+
+
+            <title>
+                PIB UPSC Current Affairs
+            </title>
+
+
+            <style>
+
+                @page {
+
+                    size: A4;
+
+                    margin:
+                        16mm 15mm 16mm 15mm;
+
+                }
+
+
+                * {
+
+                    box-sizing:
+                        border-box;
+
+                }
+
+
+                html,
+                body {
+
+                    margin:
+                        0;
+
+                    padding:
+                        0;
+
+                }
+
+
+                body {
+
+                    font-family:
+
+                        "Noto Sans Devanagari",
+
+                        "Noto Sans",
+
+                        Arial,
+
+                        sans-serif;
+
+                    color:
+                        #202124;
+
+                    background:
+                        #ffffff;
+
+                    font-size:
+                        11pt;
+
+                    line-height:
+                        1.55;
+
+                }
+
+
+                .header {
+
+                    border-bottom:
+                        2px solid #202124;
+
+                    padding-bottom:
+                        12px;
+
+                    margin-bottom:
+                        20px;
+
+                }
+
+
+                .brand {
+
+                    font-size:
+                        10pt;
+
+                    font-weight:
+                        700;
+
+                    letter-spacing:
+                        2px;
+
+                    color:
+                        #666;
+
+                    text-transform:
+                        uppercase;
+
+                }
+
+
+                .main-title {
+
+                    font-size:
+                        25pt;
+
+                    font-weight:
+                        800;
+
+                    margin:
+                        5px 0;
+
+                }
+
+
+                .subtitle {
+
+                    font-size:
+                        10pt;
+
+                    color:
+                        #666;
+
+                }
+
+
+                .month-heading {
+
+                    font-size:
+                        15pt;
+
+                    font-weight:
+                        800;
+
+                    letter-spacing:
+                        1.5px;
+
+                    margin:
+                        25px 0 14px;
+
+                    padding-bottom:
+                        7px;
+
+                    border-bottom:
+                        1px solid #d9d9d9;
+
+                    page-break-after:
+                        avoid;
+
+                }
+
+
+                .pdf-article {
+
+                    page-break-inside:
+                        avoid;
+
+                    margin-bottom:
+                        24px;
+
+                    padding-bottom:
+                        20px;
+
+                    border-bottom:
+                        1px solid #e3e3e3;
+
+                }
+
+
+                .pdf-date {
+
+                    color:
+                        #777;
+
+                    font-size:
+                        9pt;
+
+                    margin-bottom:
+                        5px;
+
+                }
+
+
+                .pdf-title {
+
+                    font-size:
+                        15pt;
+
+                    line-height:
+                        1.35;
+
+                    margin:
+                        0 0 7px;
+
+                    font-weight:
+                        800;
+
+                }
+
+
+                .pdf-meta {
+
+                    font-size:
+                        9pt;
+
+                    color:
+                        #666;
+
+                    margin-bottom:
+                        12px;
+
+                }
+
+
+                .pdf-section {
+
+                    margin-top:
+                        13px;
+
+                }
+
+
+                .pdf-section h3 {
+
+                    font-size:
+                        11pt;
+
+                    margin:
+                        0 0 5px;
+
+                    font-weight:
+                        800;
+
+                }
+
+
+                .pdf-section p {
+
+                    margin:
+                        0;
+
+                }
+
+
+                .pdf-section ul {
+
+                    margin:
+                        4px 0 0;
+
+                    padding-left:
+                        20px;
+
+                }
+
+
+                .pdf-section li {
+
+                    margin-bottom:
+                        4px;
+
+                }
+
+
+                .footer {
+
+                    margin-top:
+                        30px;
+
+                    padding-top:
+                        10px;
+
+                    border-top:
+                        1px solid #ddd;
+
+                    font-size:
+                        8.5pt;
+
+                    color:
+                        #777;
+
+                }
+
+
+                @media print {
+
+                    body {
+
+                        -webkit-print-color-adjust:
+                            exact;
+
+                        print-color-adjust:
+                            exact;
+
+                    }
+
+                }
+
+            </style>
+
+        </head>
+
+
+        <body>
+
+
+            <header class="header">
+
+                <div class="brand">
+                    PIB UPSC
+                </div>
+
+
+                <div class="main-title">
+                    Current Affairs
+                </div>
+
+
+                <div class="subtitle">
+
+                    Relevant Articles ·
+                    ${escapeHtml(
+                        monthLabel
+                    )}
+                    ·
+                    ${pdfArticles.length}
+                    Articles
+
+                </div>
+
+            </header>
+
+
+            ${articlesHTML}
+
+
+            <div class="footer">
+
+                PIB UPSC Current Affairs Engine
+
+                <br>
+
+                Generated on
+                ${escapeHtml(
+                    formatDate(
+                        new Date()
+                    )
+                )}
+
+            </div>
+
+
+        </body>
+
+        </html>
+
+    `;
+
+
+    printWindow.document.open();
+
+    printWindow.document.write(
+        documentHTML
+    );
+
+    printWindow.document.close();
+
+
+    /*
+     * Wait for the new document to render.
+     */
+
+    setTimeout(
+        function() {
+
+            printWindow.focus();
+
+            printWindow.print();
+
+        },
+        800
+    );
+}
+
+
+/* =========================================================
+   PDF BUTTON
+   ========================================================= */
+
+function setupPDFButton() {
+
+    const ids = [
+
+        "download-pdf",
+
+        "download-pdf-btn",
+
+        "pdf-download"
+
+    ];
+
+
+    let button = null;
+
+
+    for (
+        const id of ids
+    ) {
+
+        const candidate =
+            document.getElementById(
+                id
+            );
+
+
+        if (candidate) {
+
+            button =
+                candidate;
+
+            break;
+
+        }
+
+    }
+
+
+    if (!button) {
+
+        console.warn(
+            "Download PDF button not found."
+        );
+
+        return;
+    }
+
+
+    /*
+     * Make sure it is not disabled.
+     */
+
+    button.disabled =
+        false;
+
+
+    button.removeAttribute(
+        "disabled"
+    );
+
+
+    button.style.pointerEvents =
+        "auto";
+
+
+    button.style.cursor =
+        "pointer";
+
+
+    /*
+     * Prevent duplicate event listeners.
+     */
+
+    if (
+        button.dataset.pdfBound ===
+        "true"
+    ) {
+
+        return;
+    }
+
+
+    button.dataset.pdfBound =
+        "true";
+
+
+    button.addEventListener(
+        "click",
+        function(event) {
+
+            event.preventDefault();
+
+            event.stopPropagation();
+
+            downloadPDF();
+
+        }
+    );
 }
 
 
 /* =========================================================
    INITIALISE
    ========================================================= */
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function() {
+
+        setupPDFButton();
+
+    }
+);
+
+
+/*
+ * Also run immediately because app.js is normally
+ * loaded at the bottom of index.html.
+ */
+
+setupPDFButton();
+
+
+/*
+ * Load articles.
+ */
 
 loadArticles();

@@ -2,6 +2,7 @@
 <html lang="en">
 
 <head>
+
     <meta charset="UTF-8">
 
     <meta
@@ -20,11 +21,15 @@
         rel="stylesheet"
         href="styles.css"
     >
+
 </head>
+
 
 <body>
 
+
 <div class="app">
+
 
     <!-- =====================================================
          SIDEBAR
@@ -59,11 +64,8 @@
                 class="nav-item active"
                 data-view="dashboard"
             >
-                <span class="nav-icon">
-                    ◈
-                </span>
-
-                Dashboard
+                <span class="nav-icon">◈</span>
+                <span>Dashboard</span>
             </button>
 
 
@@ -71,11 +73,8 @@
                 class="nav-item"
                 data-view="articles"
             >
-                <span class="nav-icon">
-                    ≡
-                </span>
-
-                Current Affairs
+                <span class="nav-icon">≡</span>
+                <span>Current Affairs</span>
             </button>
 
 
@@ -83,11 +82,8 @@
                 class="nav-item"
                 data-view="gs"
             >
-                <span class="nav-icon">
-                    ◫
-                </span>
-
-                GS Papers
+                <span class="nav-icon">◫</span>
+                <span>GS Papers</span>
             </button>
 
 
@@ -95,11 +91,8 @@
                 class="nav-item"
                 data-view="flashcards"
             >
-                <span class="nav-icon">
-                    ▣
-                </span>
-
-                Flashcards
+                <span class="nav-icon">▣</span>
+                <span>Flashcards</span>
             </button>
 
 
@@ -107,11 +100,8 @@
                 class="nav-item"
                 data-view="revision"
             >
-                <span class="nav-icon">
-                    ✓
-                </span>
-
-                Revision
+                <span class="nav-icon">✓</span>
+                <span>Revision</span>
             </button>
 
         </nav>
@@ -122,6 +112,7 @@
         </div>
 
     </aside>
+
 
 
     <!-- =====================================================
@@ -190,6 +181,7 @@
         </header>
 
 
+
         <!-- =================================================
              DASHBOARD
              ================================================= -->
@@ -198,6 +190,9 @@
             id="dashboard-view"
             class="view active-view"
         >
+
+
+            <!-- HERO -->
 
             <div class="hero">
 
@@ -208,17 +203,15 @@
                     </div>
 
                     <h2>
-                        Stay updated.
-                        <br>
+                        Stay updated.<br>
                         Revise intelligently.
                     </h2>
 
                     <p>
-                        PIB releases transformed into
-                        concise, exam-focused current
-                        affairs with Prelims facts,
-                        Mains notes and revision
-                        material.
+                        PIB releases transformed into concise,
+                        exam-focused current affairs with
+                        Prelims facts, Mains notes and
+                        revision material.
                     </p>
 
                 </div>
@@ -242,8 +235,8 @@
             <div
                 class="hero-fetch-status"
                 style="display:none"
-            >
-            </div>
+            ></div>
+
 
 
             <!-- =================================================
@@ -318,41 +311,74 @@
             </div>
 
 
+
             <!-- =================================================
                  RECENT ARTICLES
                  ================================================= -->
 
-            <div class="section-header">
+            <div class="dashboard-controls">
 
-                <div>
+                <div class="section-header">
 
-                    <div class="section-label">
-                        Latest
+                    <div>
+
+                        <div class="section-label">
+                            Latest
+                        </div>
+
+                        <h2>
+                            Recent Current Affairs
+                        </h2>
+
                     </div>
 
-                    <h2>
-                        Recent Current Affairs
-                    </h2>
+
+                    <button
+                        class="text-button"
+                        data-view="articles"
+                    >
+                        View all →
+                    </button>
 
                 </div>
 
 
-                <button
-                    class="text-button"
-                    data-view="articles"
-                >
-                    View all →
-                </button>
+                <div class="dashboard-month-filter">
+
+                    <label for="dashboard-month-filter">
+                        Month
+                    </label>
+
+                    <select
+                        id="dashboard-month-filter"
+                        aria-label="Filter dashboard by month"
+                    >
+
+                        <option value="ALL">
+                            All Months
+                        </option>
+
+                    </select>
+
+                </div>
 
             </div>
 
 
             <div
+                id="dashboard-month-heading"
+                class="dashboard-month-heading"
+            ></div>
+
+
+            <div
                 id="recent-articles"
-            >
-            </div>
+                class="recent-articles-grid"
+            ></div>
+
 
         </section>
+
 
 
         <!-- =================================================
@@ -381,110 +407,146 @@
             </div>
 
 
+
             <!-- FILTER BAR -->
 
             <div class="filters">
 
-                <select
-                    id="month-filter"
-                    aria-label="Filter by month"
-                >
+                <div class="filter-group">
 
-                    <option value="ALL">
-                        All Months
-                    </option>
+                    <label for="month-filter">
+                        Month
+                    </label>
 
-                </select>
+                    <select
+                        id="month-filter"
+                        aria-label="Filter by month"
+                    >
 
+                        <option value="ALL">
+                            All Months
+                        </option>
 
-                <select
-                    id="importance-filter"
-                    aria-label="Filter by importance"
-                >
+                    </select>
 
-                    <option value="">
-                        All Importance
-                    </option>
-
-                    <option value="9">
-                        9–10 · Must Know
-                    </option>
-
-                    <option value="7">
-                        7–8 · Important
-                    </option>
-
-                    <option value="4">
-                        4–6 · Background
-                    </option>
-
-                    <option value="1">
-                        1–3 · Low
-                    </option>
-
-                </select>
+                </div>
 
 
-                <select
-                    id="gs-filter"
-                    aria-label="Filter by GS paper"
-                >
+                <div class="filter-group">
 
-                    <option value="">
-                        All GS Papers
-                    </option>
+                    <label for="importance-filter">
+                        Importance
+                    </label>
 
-                    <option value="GS1">
-                        GS1
-                    </option>
+                    <select
+                        id="importance-filter"
+                        aria-label="Filter by importance"
+                    >
 
-                    <option value="GS2">
-                        GS2
-                    </option>
+                        <option value="">
+                            All Importance
+                        </option>
 
-                    <option value="GS3">
-                        GS3
-                    </option>
+                        <option value="9">
+                            9–10 · Must Know
+                        </option>
 
-                    <option value="GS4">
-                        GS4
-                    </option>
+                        <option value="7">
+                            7–8 · Important
+                        </option>
 
-                    <option value="Prelims">
-                        Prelims
-                    </option>
+                        <option value="4">
+                            4–6 · Background
+                        </option>
 
-                </select>
+                        <option value="1">
+                            1–3 · Low
+                        </option>
+
+                    </select>
+
+                </div>
 
 
-                <select
-                    id="relevance-filter"
-                    aria-label="Filter by relevance"
-                >
+                <div class="filter-group">
 
-                    <option value="">
-                        All Articles
-                    </option>
+                    <label for="gs-filter">
+                        GS Paper
+                    </label>
 
-                    <option value="true">
-                        Relevant
-                    </option>
+                    <select
+                        id="gs-filter"
+                        aria-label="Filter by GS paper"
+                    >
 
-                    <option value="false">
-                        Not Relevant
-                    </option>
+                        <option value="">
+                            All GS Papers
+                        </option>
 
-                </select>
+                        <option value="GS1">
+                            GS1
+                        </option>
+
+                        <option value="GS2">
+                            GS2
+                        </option>
+
+                        <option value="GS3">
+                            GS3
+                        </option>
+
+                        <option value="GS4">
+                            GS4
+                        </option>
+
+                        <option value="Prelims">
+                            Prelims
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div class="filter-group">
+
+                    <label for="relevance-filter">
+                        Relevance
+                    </label>
+
+                    <select
+                        id="relevance-filter"
+                        aria-label="Filter by relevance"
+                    >
+
+                        <option value="">
+                            All Articles
+                        </option>
+
+                        <option value="true">
+                            Relevant
+                        </option>
+
+                        <option value="false">
+                            Not Relevant
+                        </option>
+
+                    </select>
+
+                </div>
 
             </div>
 
+
+
+            <!-- ARTICLES -->
 
             <div
                 id="articles-list"
-            >
-            </div>
+            ></div>
 
         </section>
+
 
 
         <!-- =================================================
@@ -520,13 +582,11 @@
                     data-gs="GS1"
                 >
 
-                    <h3>
-                        GS1
-                    </h3>
+                    <h3>GS1</h3>
 
                     <p>
                         History, Geography,
-                        Society &amp; Culture
+                        Society & Culture
                     </p>
 
                 </button>
@@ -537,13 +597,11 @@
                     data-gs="GS2"
                 >
 
-                    <h3>
-                        GS2
-                    </h3>
+                    <h3>GS2</h3>
 
                     <p>
                         Polity, Governance,
-                        Social Justice &amp; IR
+                        Social Justice & IR
                     </p>
 
                 </button>
@@ -554,13 +612,11 @@
                     data-gs="GS3"
                 >
 
-                    <h3>
-                        GS3
-                    </h3>
+                    <h3>GS3</h3>
 
                     <p>
                         Economy, Environment,
-                        Science &amp; Security
+                        Science & Security
                     </p>
 
                 </button>
@@ -571,13 +627,11 @@
                     data-gs="GS4"
                 >
 
-                    <h3>
-                        GS4
-                    </h3>
+                    <h3>GS4</h3>
 
                     <p>
                         Ethics, Integrity
-                        &amp; Aptitude
+                        & Aptitude
                     </p>
 
                 </button>
@@ -588,13 +642,11 @@
                     data-gs="Prelims"
                 >
 
-                    <h3>
-                        Prelims
-                    </h3>
+                    <h3>Prelims</h3>
 
                     <p>
                         Facts, concepts,
-                        institutions &amp; schemes
+                        institutions & schemes
                     </p>
 
                 </button>
@@ -604,11 +656,11 @@
 
             <div
                 id="gs-articles"
-                style="margin-top:35px;"
-            >
-            </div>
+                class="gs-articles"
+            ></div>
 
         </section>
+
 
 
         <!-- =================================================
@@ -639,8 +691,7 @@
 
             <div
                 id="flashcard-container"
-            >
-            </div>
+            ></div>
 
 
             <div
@@ -650,6 +701,7 @@
             </div>
 
         </section>
+
 
 
         <!-- =================================================
@@ -678,14 +730,7 @@
             </div>
 
 
-            <p
-                style="
-                    color:#737985;
-                    margin-top:-8px;
-                    margin-bottom:24px;
-                    line-height:1.6;
-                "
-            >
+            <p class="revision-description">
                 Your highest-priority UPSC
                 articles for quick revision.
             </p>
@@ -693,14 +738,15 @@
 
             <div
                 id="revision-list"
-            >
-            </div>
+            ></div>
 
         </section>
+
 
     </main>
 
 </div>
+
 
 
 <!-- =========================================================
@@ -712,12 +758,11 @@
     class="hidden"
 >
 
-    <div
-        class="modal-content"
-    >
+    <div class="modal-content">
 
         <button
             id="close-modal"
+            class="modal-close"
             aria-label="Close article"
         >
             ×
@@ -726,12 +771,12 @@
 
         <div
             id="article-detail"
-        >
-        </div>
+        ></div>
 
     </div>
 
 </div>
+
 
 
 <!-- =========================================================
@@ -753,4 +798,5 @@
 
 
 </body>
+
 </html>

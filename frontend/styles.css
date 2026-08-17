@@ -1566,3 +1566,92 @@ select:focus-visible {
     }
 
 }
+
+/* =========================================================
+   ARTICLE CARD — LANGUAGE SAFE LAYOUT
+   ========================================================= */
+
+.article-card {
+    display: flex;
+    flex-direction: column;
+
+    height: auto;
+    min-height: 0;
+
+    overflow: hidden;
+}
+
+.article-card .article-date,
+.article-card .article-meta,
+.article-card .article-title,
+.article-card .article-summary,
+.article-card .article-topics {
+    flex-shrink: 0;
+}
+
+/* Hindi / Indic scripts need slightly more comfortable
+   line-height than Latin text */
+.article-title {
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    word-break: normal;
+}
+
+.article-summary {
+    line-height: 1.6;
+}
+
+/* Keep the CTA attached to the content rather than
+   creating a large artificial empty area */
+.article-card .read-button {
+    margin-top: 18px;
+    flex-shrink: 0;
+}
+
+/* When there is no summary, don't reserve summary space */
+.article-card .article-summary:empty {
+    display: none;
+}
+
+/* Better spacing for cards containing long Hindi titles */
+.article-card:has(.article-title) {
+    min-height: 0;
+}
+
+/* =========================================================
+   RECENT ARTICLE GRID
+   ========================================================= */
+
+#recent-articles {
+    align-items: start;
+}
+
+#recent-articles .article-card {
+    align-self: start;
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+    .article-card {
+        padding: 18px;
+    }
+
+    .article-title {
+        font-size: 17px;
+        line-height: 1.5;
+    }
+
+    .article-summary {
+        font-size: 13px;
+        line-height: 1.6;
+    }
+
+    .article-card .read-button {
+        margin-top: 16px;
+    }
+}

@@ -8,597 +8,637 @@
 
 <link rel="stylesheet" href="styles.css">
 
-<!-- jsPDF for PDF export -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 
 <body>
 
 <div class="app">
 
-<aside class="sidebar">
+    <aside class="sidebar">
 
-    <div class="brand">
-        <div class="brand-mark">P</div>
+        <div class="brand">
 
-        <div class="brand-text">
-            <h1>PIB UPSC</h1>
-            <p>Current Affairs Engine</p>
-        </div>
-    </div>
+            <div class="brand-mark">
+                P
+            </div>
 
-    <nav class="nav">
+            <div class="brand-text">
+                <h1>PIB UPSC</h1>
+                <p>Current Affairs Engine</p>
+            </div>
 
-        <button
-            class="nav-item active"
-            data-view="dashboard"
-        >
-            <span class="nav-icon">◈</span>
-            Dashboard
-        </button>
-
-        <button
-            class="nav-item"
-            data-view="articles"
-        >
-            <span class="nav-icon">≡</span>
-            Current Affairs
-        </button>
-
-        <button
-            class="nav-item"
-            data-view="gs"
-        >
-            <span class="nav-icon">◫</span>
-            GS Papers
-        </button>
-
-        <button
-            class="nav-item"
-            data-view="flashcards"
-        >
-            <span class="nav-icon">▣</span>
-            Flashcards
-        </button>
-
-        <button
-            class="nav-item"
-            data-view="revision"
-        >
-            <span class="nav-icon">✓</span>
-            Revision
-        </button>
-
-    </nav>
-
-    <div class="sidebar-footer">
-        PIB → AI → UPSC
-    </div>
-
-</aside>
-
-
-<main class="main">
-
-<header class="page-header">
-
-    <div class="page-header-left">
-
-        <div class="eyebrow">
-            PIB Current Affairs
         </div>
 
-        <h1 id="page-title">
-            Dashboard
-        </h1>
 
-    </div>
+        <nav class="nav">
 
-
-    <div class="header-actions">
-
-        <div
-            class="last-updated"
-            id="last-updated"
-        >
-            Not updated yet
-        </div>
-
-        <div class="search-box">
-
-            <span class="search-icon">
-                ⌕
-            </span>
-
-            <input
-                type="search"
-                id="global-search"
-                placeholder="Search current affairs..."
-                autocomplete="off"
+            <button
+                class="nav-item active"
+                data-view="dashboard"
             >
-
-        </div>
-
-        <button
-            id="refresh-btn"
-            class="icon-button"
-            title="Refresh articles"
-            aria-label="Refresh articles"
-        >
-            ↻
-        </button>
-
-    </div>
-
-</header>
+                <span class="nav-icon">◈</span>
+                Dashboard
+            </button>
 
 
-<!-- =====================================================
-     DASHBOARD
-     ===================================================== -->
-
-<section
-    id="dashboard-view"
-    class="view active-view"
->
-
-    <div class="hero">
-
-        <div class="hero-content">
-
-            <div class="hero-eyebrow">
-                UPSC Current Affairs
-            </div>
-
-            <h2>
-                Stay updated.<br>
-                Revise intelligently.
-            </h2>
-
-            <p>
-                PIB releases transformed into concise,
-                exam-focused current affairs with Prelims
-                facts, Mains notes and revision material.
-            </p>
-
-        </div>
-
-        <div class="hero-count">
-
-            <strong id="hero-count">
-                0
-            </strong>
-
-            <span>
-                relevant articles
-            </span>
-
-        </div>
-
-    </div>
-
-
-    <div
-        class="hero-fetch-status"
-        style="display:none;"
-    ></div>
-
-
-    <div class="metrics">
-
-        <div class="metric-card">
-
-            <div class="label">
-                Total Articles
-            </div>
-
-            <div
-                class="value"
-                id="total-count"
+            <button
+                class="nav-item"
+                data-view="articles"
             >
-                0
-            </div>
-
-        </div>
-
-
-        <div class="metric-card">
-
-            <div class="label">
-                AI Processed
-            </div>
-
-            <div
-                class="value"
-                id="processed-count"
-            >
-                0
-            </div>
-
-        </div>
-
-
-        <div class="metric-card">
-
-            <div class="label">
-                UPSC Relevant
-            </div>
-
-            <div
-                class="value"
-                id="relevant-count"
-            >
-                0
-            </div>
-
-        </div>
-
-
-        <div class="metric-card">
-
-            <div class="label">
-                High Priority
-            </div>
-
-            <div
-                class="value"
-                id="important-count"
-            >
-                0
-            </div>
-
-        </div>
-
-    </div>
-
-
-    <div class="section-header">
-
-        <div>
-
-            <div class="section-label">
-                Latest
-            </div>
-
-            <h2>
-                Recent Current Affairs
-            </h2>
-
-        </div>
-
-        <button
-            class="text-button"
-            data-view="articles"
-        >
-            View all →
-        </button>
-
-    </div>
-
-
-    <div id="recent-articles"></div>
-
-</section>
-
-
-<!-- =====================================================
-     CURRENT AFFAIRS
-     ===================================================== -->
-
-<section
-    id="articles-view"
-    class="view"
->
-
-    <div class="section-header">
-
-        <div>
-
-            <div class="section-label">
-                Knowledge Base
-            </div>
-
-            <h2>
+                <span class="nav-icon">≡</span>
                 Current Affairs
-            </h2>
-
-        </div>
-
-    </div>
+            </button>
 
 
-    <div class="filters">
-
-        <select
-            id="month-filter"
-            aria-label="Filter by month"
-        >
-            <option value="ALL">
-                All Months
-            </option>
-        </select>
-
-
-        <select
-            id="importance-filter"
-            aria-label="Filter by importance"
-        >
-
-            <option value="">
-                All Importance
-            </option>
-
-            <option value="9">
-                9–10 · Must Know
-            </option>
-
-            <option value="7">
-                7–8 · Important
-            </option>
-
-            <option value="4">
-                4–6 · Background
-            </option>
-
-            <option value="1">
-                1–3 · Low
-            </option>
-
-        </select>
-
-
-        <select
-            id="gs-filter"
-            aria-label="Filter by GS paper"
-        >
-
-            <option value="">
-                All GS Papers
-            </option>
-
-            <option value="GS1">
-                GS1
-            </option>
-
-            <option value="GS2">
-                GS2
-            </option>
-
-            <option value="GS3">
-                GS3
-            </option>
-
-            <option value="GS4">
-                GS4
-            </option>
-
-            <option value="Prelims">
-                Prelims
-            </option>
-
-        </select>
-
-
-        <button
-            id="download-pdf"
-            class="pdf-download-btn"
-            type="button"
-        >
-            Download PDF
-        </button>
-
-    </div>
-
-
-    <div id="articles-list"></div>
-
-</section>
-
-
-<!-- =====================================================
-     GS PAPERS
-     ===================================================== -->
-
-<section
-    id="gs-view"
-    class="view"
->
-
-    <div class="section-header">
-
-        <div>
-
-            <div class="section-label">
-                UPSC Framework
-            </div>
-
-            <h2>
+            <button
+                class="nav-item"
+                data-view="gs"
+            >
+                <span class="nav-icon">◫</span>
                 GS Papers
-            </h2>
-
-        </div>
-
-    </div>
+            </button>
 
 
-    <div class="gs-grid">
-
-        <button
-            class="gs-card"
-            data-gs="GS1"
-        >
-
-            <h3>
-                GS1
-            </h3>
-
-            <p>
-                History, Geography, Society &amp; Culture
-            </p>
-
-        </button>
-
-
-        <button
-            class="gs-card"
-            data-gs="GS2"
-        >
-
-            <h3>
-                GS2
-            </h3>
-
-            <p>
-                Polity, Governance, Social Justice &amp; IR
-            </p>
-
-        </button>
-
-
-        <button
-            class="gs-card"
-            data-gs="GS3"
-        >
-
-            <h3>
-                GS3
-            </h3>
-
-            <p>
-                Economy, Environment, Science &amp; Security
-            </p>
-
-        </button>
-
-
-        <button
-            class="gs-card"
-            data-gs="GS4"
-        >
-
-            <h3>
-                GS4
-            </h3>
-
-            <p>
-                Ethics, Integrity &amp; Aptitude
-            </p>
-
-        </button>
-
-
-        <button
-            class="gs-card"
-            data-gs="Prelims"
-        >
-
-            <h3>
-                Prelims
-            </h3>
-
-            <p>
-                Facts, concepts, institutions &amp; schemes
-            </p>
-
-        </button>
-
-    </div>
-
-
-    <div
-        id="gs-articles"
-        style="margin-top:35px;"
-    ></div>
-
-</section>
-
-
-<!-- =====================================================
-     FLASHCARDS
-     ===================================================== -->
-
-<section
-    id="flashcards-view"
-    class="view"
->
-
-    <div class="section-header">
-
-        <div>
-
-            <div class="section-label">
-                Active Recall
-            </div>
-
-            <h2>
+            <button
+                class="nav-item"
+                data-view="flashcards"
+            >
+                <span class="nav-icon">▣</span>
                 Flashcards
-            </h2>
+            </button>
 
+
+            <button
+                class="nav-item"
+                data-view="revision"
+            >
+                <span class="nav-icon">✓</span>
+                Revision
+            </button>
+
+        </nav>
+
+
+        <div class="sidebar-footer">
+            PIB → AI → UPSC
         </div>
 
-    </div>
+    </aside>
 
 
-    <div id="flashcard-container"></div>
-
-    <div id="flashcard-progress">
-        0 / 0
-    </div>
-
-</section>
+    <main class="main">
 
 
-<!-- =====================================================
-     REVISION
-     ===================================================== -->
+        <header class="page-header">
 
-<section
-    id="revision-view"
-    class="view"
->
+            <div class="page-header-left">
 
-    <div class="section-header">
+                <div class="eyebrow">
+                    PIB Current Affairs
+                </div>
 
-        <div>
+                <h1 id="page-title">
+                    Dashboard
+                </h1>
 
-            <div class="section-label">
-                High Priority
             </div>
 
-            <h2>
-                Revision
-            </h2>
 
-        </div>
+            <div class="header-actions">
 
-    </div>
-
-
-    <p
-        style="
-            color:#737985;
-            margin-top:-8px;
-            margin-bottom:24px;
-            line-height:1.6;
-        "
-    >
-        Your highest-priority UPSC articles
-        for quick revision.
-    </p>
+                <div
+                    class="last-updated"
+                    id="last-updated"
+                >
+                    Not updated yet
+                </div>
 
 
-    <div id="revision-list"></div>
+                <div class="search-box">
 
-</section>
+                    <span class="search-icon">
+                        ⌕
+                    </span>
 
-</main>
+                    <input
+                        type="search"
+                        id="global-search"
+                        placeholder="Search current affairs..."
+                        autocomplete="off"
+                    >
+
+                </div>
+
+
+                <button
+                    id="refresh-btn"
+                    class="icon-button"
+                    title="Refresh articles"
+                    aria-label="Refresh articles"
+                >
+                    ↻
+                </button>
+
+            </div>
+
+        </header>
+
+
+
+        <!-- =====================================================
+             DASHBOARD
+             ===================================================== -->
+
+        <section
+            id="dashboard-view"
+            class="view active-view"
+        >
+
+            <div class="hero">
+
+                <div class="hero-content">
+
+                    <div class="hero-eyebrow">
+                        UPSC Current Affairs
+                    </div>
+
+                    <h2>
+                        Stay updated.<br>
+                        Revise intelligently.
+                    </h2>
+
+                    <p>
+                        PIB releases transformed into concise,
+                        exam-focused current affairs with
+                        Prelims facts, Mains notes and revision material.
+                    </p>
+
+                </div>
+
+
+                <div class="hero-count">
+
+                    <strong id="hero-count">
+                        0
+                    </strong>
+
+                    <span>
+                        relevant articles
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <div
+                class="hero-fetch-status"
+                style="display:none;"
+            ></div>
+
+
+            <div class="metrics">
+
+                <div class="metric-card">
+
+                    <div class="label">
+                        Relevant Articles
+                    </div>
+
+                    <div
+                        class="value"
+                        id="total-count"
+                    >
+                        0
+                    </div>
+
+                </div>
+
+
+                <div class="metric-card">
+
+                    <div class="label">
+                        AI Processed
+                    </div>
+
+                    <div
+                        class="value"
+                        id="processed-count"
+                    >
+                        0
+                    </div>
+
+                </div>
+
+
+                <div class="metric-card">
+
+                    <div class="label">
+                        UPSC Relevant
+                    </div>
+
+                    <div
+                        class="value"
+                        id="relevant-count"
+                    >
+                        0
+                    </div>
+
+                </div>
+
+
+                <div class="metric-card">
+
+                    <div class="label">
+                        High Priority
+                    </div>
+
+                    <div
+                        class="value"
+                        id="important-count"
+                    >
+                        0
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="section-header">
+
+                <div>
+
+                    <div class="section-label">
+                        Latest
+                    </div>
+
+                    <h2>
+                        Recent Current Affairs
+                    </h2>
+
+                </div>
+
+
+                <button
+                    class="text-button"
+                    data-view="articles"
+                >
+                    View all →
+                </button>
+
+            </div>
+
+
+            <div id="recent-articles"></div>
+
+        </section>
+
+
+
+        <!-- =====================================================
+             CURRENT AFFAIRS
+             ===================================================== -->
+
+        <section
+            id="articles-view"
+            class="view"
+        >
+
+            <div class="section-header articles-header">
+
+                <div>
+
+                    <div class="section-label">
+                        Knowledge Base
+                    </div>
+
+                    <h2>
+                        Current Affairs
+                    </h2>
+
+                </div>
+
+
+                <div class="articles-toolbar">
+
+                    <span class="toolbar-label">
+                        Month
+                    </span>
+
+
+                    <select
+                        id="month-filter"
+                        aria-label="Filter by month"
+                    >
+
+                        <option value="ALL">
+                            All Months
+                        </option>
+
+                    </select>
+
+
+                    <button
+                        id="download-pdf-btn"
+                        class="pdf-download-btn"
+                        type="button"
+                    >
+                        ↓ Download PDF
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <div class="filters">
+
+                <select
+                    id="importance-filter"
+                    aria-label="Filter by importance"
+                >
+
+                    <option value="">
+                        All Importance
+                    </option>
+
+                    <option value="9">
+                        9–10 · Must Know
+                    </option>
+
+                    <option value="7">
+                        7–8 · Important
+                    </option>
+
+                    <option value="4">
+                        4–6 · Background
+                    </option>
+
+                    <option value="1">
+                        1–3 · Low
+                    </option>
+
+                </select>
+
+
+                <select
+                    id="gs-filter"
+                    aria-label="Filter by GS paper"
+                >
+
+                    <option value="">
+                        All GS Papers
+                    </option>
+
+                    <option value="GS1">
+                        GS1
+                    </option>
+
+                    <option value="GS2">
+                        GS2
+                    </option>
+
+                    <option value="GS3">
+                        GS3
+                    </option>
+
+                    <option value="GS4">
+                        GS4
+                    </option>
+
+                    <option value="Prelims">
+                        Prelims
+                    </option>
+
+                </select>
+
+            </div>
+
+
+            <div
+                id="articles-heading"
+                class="articles-heading"
+            >
+                ALL CURRENT AFFAIRS
+            </div>
+
+
+            <div id="articles-list"></div>
+
+        </section>
+
+
+
+        <!-- =====================================================
+             GS PAPERS
+             ===================================================== -->
+
+        <section
+            id="gs-view"
+            class="view"
+        >
+
+            <div class="section-header">
+
+                <div>
+
+                    <div class="section-label">
+                        UPSC Framework
+                    </div>
+
+                    <h2>
+                        GS Papers
+                    </h2>
+
+                </div>
+
+            </div>
+
+
+            <div class="gs-grid">
+
+                <button
+                    class="gs-card"
+                    data-gs="GS1"
+                >
+
+                    <h3>
+                        GS1
+                    </h3>
+
+                    <p>
+                        History, Geography, Society &amp; Culture
+                    </p>
+
+                </button>
+
+
+                <button
+                    class="gs-card"
+                    data-gs="GS2"
+                >
+
+                    <h3>
+                        GS2
+                    </h3>
+
+                    <p>
+                        Polity, Governance, Social Justice &amp; IR
+                    </p>
+
+                </button>
+
+
+                <button
+                    class="gs-card"
+                    data-gs="GS3"
+                >
+
+                    <h3>
+                        GS3
+                    </h3>
+
+                    <p>
+                        Economy, Environment, Science &amp; Security
+                    </p>
+
+                </button>
+
+
+                <button
+                    class="gs-card"
+                    data-gs="GS4"
+                >
+
+                    <h3>
+                        GS4
+                    </h3>
+
+                    <p>
+                        Ethics, Integrity &amp; Aptitude
+                    </p>
+
+                </button>
+
+
+                <button
+                    class="gs-card"
+                    data-gs="Prelims"
+                >
+
+                    <h3>
+                        Prelims
+                    </h3>
+
+                    <p>
+                        Facts, concepts, institutions &amp; schemes
+                    </p>
+
+                </button>
+
+            </div>
+
+
+            <div
+                id="gs-articles"
+                style="margin-top:35px;"
+            ></div>
+
+        </section>
+
+
+
+        <!-- =====================================================
+             FLASHCARDS
+             ===================================================== -->
+
+        <section
+            id="flashcards-view"
+            class="view"
+        >
+
+            <div class="section-header">
+
+                <div>
+
+                    <div class="section-label">
+                        Active Recall
+                    </div>
+
+                    <h2>
+                        Flashcards
+                    </h2>
+
+                </div>
+
+            </div>
+
+
+            <div id="flashcard-container"></div>
+
+
+            <div id="flashcard-progress">
+                0 / 0
+            </div>
+
+        </section>
+
+
+
+        <!-- =====================================================
+             REVISION
+             ===================================================== -->
+
+        <section
+            id="revision-view"
+            class="view"
+        >
+
+            <div class="section-header">
+
+                <div>
+
+                    <div class="section-label">
+                        High Priority
+                    </div>
+
+                    <h2>
+                        Revision
+                    </h2>
+
+                </div>
+
+            </div>
+
+
+            <p
+                style="
+                    color:#737985;
+                    margin-top:-8px;
+                    margin-bottom:24px;
+                    line-height:1.6;
+                "
+            >
+                Your highest-priority UPSC articles
+                for quick revision.
+            </p>
+
+
+            <div id="revision-list"></div>
+
+        </section>
+
+
+    </main>
 
 </div>
 
 
-<!-- =====================================================
+
+<!-- =========================================================
      ARTICLE MODAL
-     ===================================================== -->
+     ========================================================= -->
 
 <div
     id="article-modal"
@@ -621,11 +661,14 @@
 </div>
 
 
-<!-- =====================================================
-     SUPABASE
-     ===================================================== -->
+
+<!-- =========================================================
+     LIBRARIES
+     ========================================================= -->
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script src="https://unpkg.com/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 
 <script src="app.js"></script>
 

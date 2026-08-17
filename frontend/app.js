@@ -1,6 +1,6 @@
 /* =========================================================
    PIB UPSC — APP.JS
-   Dynamic month slicer + monthly article grouping
+   Stable production version
    ========================================================= */
 
 const SUPABASE_URL =
@@ -25,18 +25,49 @@ let articles = [];
 let flashcards = [];
 
 let currentFlashcard = 0;
-
 let lastFetchTime = null;
-
 let isLoading = false;
 
 let selectedMonth = "ALL";
 
 
 /* =========================================================
+   DOM READY
+   ========================================================= */
+
+document.addEventListener("DOMContentLoaded", () => {
+    initialiseApp();
+});
+
+
+/* =========================================================
+   INITIALISE
+   ========================================================= */
+
+function initialiseApp() {
+
+    setupNavigation();
+    setupFilters();
+    setupSearch();
+    setupModal();
+    setupRefresh();
+
+    loadArticles();
+}
+
+
+/* =========================================================
    DATE HELPERS
    ========================================================= */
 
+/*
+ * Priority:
+ * 1. published_at
+ * 2. fetched_at
+ * 3. created_at
+ * 4. inserted_at
+ * 5. updated_at
+ */
 function getArticleDate(article) {
 
     const candidates = [
@@ -49,7 +80,9 @@ function getArticleDate(article) {
 
     for (const value of candidates) {
 
-        if (!value) continue;
+        if (!value) {
+            continue;
+        }
 
         const date = new Date(value);
 
@@ -64,10 +97,10 @@ function getArticleDate(article) {
 
 function getDisplayDate(article) {
 
-    const date = getArticleDate(article);
+    const articleDate = getArticleDate(article);
 
-    if (date) {
-        return date;
+    if (articleDate) {
+        return articleDate;
     }
 
     if (lastFetchTime) {
@@ -78,16 +111,16 @@ function getDisplayDate(article) {
 }
 
 
-function formatDate(dateValue) {
+function formatDate(value) {
 
-    if (!dateValue) {
+    if (!value) {
         return "";
     }
 
     const date =
-        dateValue instanceof Date
-            ? dateValue
-            : new Date(dateValue);
+        value instanceof Date
+            ? value
+            : new Date(value);
 
     if (Number.isNaN(date.getTime())) {
         return "";
@@ -106,16 +139,16 @@ function formatDate(dateValue) {
 
 function getMonthKey(article) {
 
-    const date =
-        getDisplayDate(article);
+    const date = getDisplayDate(article);
 
     if (!date) {
         return "UNKNOWN";
     }
 
-    return `${date.getFullYear()}-${String(
-        date.getMonth() + 1
-    ).padStart(2, "0")}`;
+    return (
+        `${date.getFullYear()}-` +
+        `${String(date.getMonth() + 1).padStart(2, "0")}`
+    );
 }
 
 
@@ -125,15 +158,13 @@ function getMonthLabelFromKey(key) {
         return "RECENT ARTICLES";
     }
 
-    const [year, month] =
-        key.split("-");
+    const [year, month] = key.split("-");
 
-    const date =
-        new Date(
-            Number(year),
-            Number(month) - 1,
-            1
-        );
+    const date = new Date(
+        Number(year),
+        Number(month) - 1,
+        1
+    );
 
     return date
         .toLocaleDateString(
@@ -144,6 +175,123 @@ function getMonthLabelFromKey(key) {
             }
         )
         .toUpperCase();
+}
+
+
+/* =========================================================
+   NORMALISATION HELPERS
+   ========================================================= */
+
+function getImportance(article) {
+
+    const value = Number(
+        article.importance
+    );
+
+    if (Number.isNaN(value)) {
+        return 0;
+    }
+
+    return Math.max(
+        0,
+        Math.min(10, value)
+    );
+}
+
+
+function isRelevant(article) {
+
+    /*
+     * If the AI explicitly marked it false,
+     * it is not part of the UPSC feed.
+     */
+
+    if (
+        article.relevant === false ||
+        article.relevant === "false" ||
+        article.relevant === 0 ||
+        article.relevant === "0"
+    ) {
+        return false;
+    }
+
+    /*
+     * If importance is below 7,
+     * don't show it in the UPSC-facing feed.
+     */
+
+    return getImportance(article) >= 7;
+}
+
+
+/*
+ * This is the MOST IMPORTANT display filter.
+ *
+ * Database can contain:
+ * - irrelevant articles
+ * - failed AI processing
+ * - 0/10 articles
+ * - background releases
+ *
+ * The UPSC UI should only show meaningful articles.
+ */
+function getUPSCArticles() {
+
+    return articles.filter(
+        article => isRelevant(article)
+    );
+}
+
+
+function getArray(value) {
+
+    if (Array.isArray(value)) {
+        return value;
+    }
+
+    if (
+        typeof value === "string" &&
+        value.trim()
+    ) {
+
+        try {
+
+            const parsed =
+                JSON.parse(value);
+
+            if (Array.isArray(parsed)) {
+                return parsed;
+            }
+
+        } catch (error) {
+            /*
+             * Ignore invalid JSON.
+             */
+        }
+
+        return value
+            .split(",")
+            .map(item => item.trim())
+            .filter(Boolean);
+    }
+
+    return [];
+}
+
+
+function getGsPapers(article) {
+
+    return getArray(
+        article.gs_papers
+    );
+}
+
+
+function getTopics(article) {
+
+    return getArray(
+        article.topics
+    );
 }
 
 
@@ -193,12 +341,6 @@ function setLoading(loading) {
 
     button.disabled = loading;
 
-    button.style.opacity =
-        loading ? "0.55" : "";
-
-    button.style.cursor =
-        loading ? "wait" : "";
-
     button.classList.toggle(
         "loading",
         loading
@@ -240,7 +382,7 @@ function updateLastUpdated() {
 
 
 /* =========================================================
-   LOAD ARTICLES
+   LOAD ARTICLES FROM SUPABASE
    ========================================================= */
 
 async function loadArticles() {
@@ -288,21 +430,14 @@ async function loadArticles() {
             new Date();
 
         /*
-         * Rebuild the month slicer every time
-         * data is loaded.
-         *
-         * This means newly added months appear
-         * automatically.
+         * Rebuild everything from fresh data.
          */
 
         buildMonthSlicer();
-
         buildFlashcards();
 
         renderDashboard();
-
         applyAllFilters();
-
         renderRevision();
 
         updateLastUpdated();
@@ -310,6 +445,7 @@ async function loadArticles() {
     } catch (error) {
 
         console.error(
+            "Load error:",
             error
         );
 
@@ -339,160 +475,129 @@ function buildMonthSlicer() {
         return;
     }
 
-    /*
-     * Remember the currently selected month.
-     */
-
-    const oldValue =
-        selectedMonth;
-
+    const monthMap = new Map();
 
     /*
-     * Find every month represented
-     * in the database.
+     * IMPORTANT:
+     * Build months from ALL database articles,
+     * not only relevant articles.
+     *
+     * This means the slicer reflects the database.
      */
 
-    const monthMap =
-        new Map();
+    articles.forEach(article => {
 
-    articles.forEach(
-        article => {
+        const key =
+            getMonthKey(article);
 
-            const key =
-                getMonthKey(
-                    article
-                );
-
-            if (
-                key === "UNKNOWN"
-            ) {
-                return;
-            }
-
-            if (
-                !monthMap.has(key)
-            ) {
-
-                monthMap.set(
-                    key,
-                    getMonthLabelFromKey(
-                        key
-                    )
-                );
-            }
+        if (key === "UNKNOWN") {
+            return;
         }
-    );
 
+        if (!monthMap.has(key)) {
 
-    /*
-     * Sort months newest first.
-     */
+            monthMap.set(
+                key,
+                getMonthLabelFromKey(key)
+            );
+        }
+    });
+
 
     const months =
         Array.from(
             monthMap.entries()
-        )
-        .sort(
-            (
-                a,
-                b
-            ) =>
+        ).sort(
+            (a, b) =>
                 b[0].localeCompare(
                     a[0]
                 )
         );
 
 
-    select.innerHTML = `
-
+    select.innerHTML =
+        `
         <option value="ALL">
             All Months
         </option>
 
-        ${months
-            .map(
-                (
-                    [key, label]
-                ) => `
-                    <option
-                        value="${key}"
-                    >
-                        ${escapeHtml(
-                            label
-                        )}
-                    </option>
-                `
-            )
-            .join("")
+        ${
+            months
+                .map(
+                    ([key, label]) =>
+                        `
+                        <option value="${escapeHtml(key)}">
+                            ${escapeHtml(label)}
+                        </option>
+                        `
+                )
+                .join("")
         }
+        `;
 
-    `;
 
-
-    /*
-     * Restore previous selection
-     * if that month still exists.
-     */
-
-    const exists =
+    const stillExists =
         months.some(
             ([key]) =>
-                key === oldValue
+                key === selectedMonth
         );
 
 
     if (
-        oldValue !== "ALL" &&
-        exists
+        selectedMonth !== "ALL" &&
+        stillExists
     ) {
 
         select.value =
-            oldValue;
+            selectedMonth;
 
     } else {
 
-        select.value =
+        selectedMonth =
             "ALL";
 
-        selectedMonth =
+        select.value =
             "ALL";
     }
 }
 
 
 /* =========================================================
-   APPLY ALL FILTERS
+   FILTERS
    ========================================================= */
 
 function applyAllFilters() {
 
-    let filtered =
-        [...articles];
-
-
     /*
-     * MONTH
+     * START WITH ONLY UPSC-RELEVANT ARTICLES.
+     *
+     * This removes 0/10 articles from the feed.
      */
 
+    let filtered =
+        getUPSCArticles();
+
+
+    /* -------------------------
+       MONTH
+       ------------------------- */
+
     if (
-        selectedMonth !==
-        "ALL"
+        selectedMonth !== "ALL"
     ) {
 
         filtered =
             filtered.filter(
                 article =>
-                    getMonthKey(
-                        article
-                    ) ===
+                    getMonthKey(article) ===
                     selectedMonth
             );
     }
 
 
-    /*
-     * IMPORTANCE
-     */
+    /* -------------------------
+       IMPORTANCE
+       ------------------------- */
 
     const importanceFilter =
         document.getElementById(
@@ -508,40 +613,41 @@ function applyAllFilters() {
     if (importance) {
 
         const min =
-            Number(
-                importance
-            );
+            Number(importance);
 
-        let max;
+        let max = 10;
 
-        if (min === 9) {
-            max = 10;
-        } else if (min === 7) {
+        if (min === 7) {
             max = 8;
-        } else if (min === 4) {
+        }
+
+        if (min === 4) {
             max = 6;
-        } else {
+        }
+
+        if (min === 1) {
             max = 3;
         }
 
         filtered =
             filtered.filter(
-                article =>
-                    (
-                        article.importance ||
-                        0
-                    ) >= min &&
-                    (
-                        article.importance ||
-                        0
-                    ) <= max
+                article => {
+
+                    const score =
+                        getImportance(article);
+
+                    return (
+                        score >= min &&
+                        score <= max
+                    );
+                }
             );
     }
 
 
-    /*
-     * GS PAPER
-     */
+    /* -------------------------
+       GS PAPER
+       ------------------------- */
 
     const gsFilter =
         document.getElementById(
@@ -559,16 +665,20 @@ function applyAllFilters() {
         filtered =
             filtered.filter(
                 article =>
-                    (
-                        article.gs_papers ||
-                        []
-                    ).includes(gs)
+                    getGsPapers(article)
+                        .includes(gs)
             );
     }
 
 
+    /* -------------------------
+       RELEVANCE
+       ------------------------- */
+
     /*
-     * RELEVANCE
+     * Since this is already the UPSC feed,
+     * "All Articles" effectively means
+     * all UPSC-relevant articles.
      */
 
     const relevanceFilter =
@@ -582,20 +692,30 @@ function applyAllFilters() {
             : "";
 
 
-    if (relevance) {
+    if (relevance === "true") {
 
         filtered =
             filtered.filter(
                 article =>
-                    String(
-                        article.relevant
-                    ) === relevance
+                    isRelevant(article)
             );
     }
 
 
+    if (relevance === "false") {
+
+        /*
+         * There are intentionally no
+         * non-relevant articles in the
+         * UPSC Current Affairs feed.
+         */
+
+        filtered = [];
+    }
+
+
     renderArticles(
-        filtered
+        sortNewestFirst(filtered)
     );
 }
 
@@ -609,31 +729,34 @@ function renderDashboard() {
     const total =
         articles.length;
 
+
     const processed =
         articles.filter(
             article =>
-                article.processed
+                article.processed === true ||
+                article.processed === "true" ||
+                article.processed === 1
         ).length;
+
 
     const relevant =
-        articles.filter(
-            article =>
-                article.relevant
-        ).length;
+        getUPSCArticles().length;
+
 
     const important =
-        articles.filter(
+        getUPSCArticles().filter(
             article =>
-                (
-                    article.importance ||
-                    0
-                ) >= 7
+                getImportance(article) >= 7
         ).length;
 
+
+    /*
+     * DATABASE METRICS
+     */
 
     setText(
         "hero-count",
-        total
+        relevant
     );
 
     setText(
@@ -657,11 +780,15 @@ function renderDashboard() {
     );
 
 
+    /*
+     * RECENT FEED
+     *
+     * Only relevant articles.
+     */
+
     const recent =
-        articles.slice(
-            0,
-            6
-        );
+        getUPSCArticles()
+            .slice(0, 6);
 
 
     const container =
@@ -669,15 +796,35 @@ function renderDashboard() {
             "recent-articles"
         );
 
-    if (container) {
+
+    if (!container) {
+        return;
+    }
+
+
+    if (recent.length === 0) {
 
         container.innerHTML =
-            recent
-                .map(
-                    articleCard
-                )
-                .join("");
+            `
+            <div class="empty-state">
+                No UPSC-relevant articles available yet.
+            </div>
+            `;
+
+        return;
     }
+
+
+    container.innerHTML =
+        `
+        <div class="recent-grid">
+            ${
+                recent
+                    .map(articleCard)
+                    .join("")
+            }
+        </div>
+        `;
 }
 
 
@@ -688,76 +835,67 @@ function renderDashboard() {
 function articleCard(article) {
 
     const importance =
-        article.importance || 0;
+        getImportance(article);
+
 
     const priority =
         importance >= 9
             ? "high"
-            : importance >= 7
-                ? "medium"
-                : "low";
+            : "medium";
 
 
     const date =
-        getDisplayDate(
-            article
-        );
+        getDisplayDate(article);
 
 
     const dateText =
-        formatDate(
-            date
-        );
+        formatDate(date);
+
+
+    const gsPapers =
+        getGsPapers(article);
+
+
+    const title =
+        article.english_title ||
+        article.title ||
+        "Untitled article";
+
+
+    const summary =
+        article.english_summary ||
+        "";
 
 
     return `
-
-        <article
-            class="article-card"
-        >
+        <article class="article-card">
 
             ${
                 dateText
                     ? `
-                        <div
-                            class="article-date"
-                        >
-                            ${dateText}
+                        <div class="article-date">
+                            ${escapeHtml(dateText)}
                         </div>
                     `
                     : ""
             }
 
 
-            <div
-                class="article-meta"
-            >
+            <div class="article-meta">
 
-                <span
-                    class="badge ${priority}"
-                >
+                <span class="badge ${priority}">
                     ${importance}/10
                 </span>
 
 
                 ${
-                    (
-                        article.gs_papers ||
-                        []
-                    )
-                        .slice(
-                            0,
-                            2
-                        )
+                    gsPapers
+                        .slice(0, 2)
                         .map(
                             gs =>
                                 `
-                                <span
-                                    class="badge"
-                                >
-                                    ${escapeHtml(
-                                        gs
-                                    )}
+                                <span class="badge">
+                                    ${escapeHtml(gs)}
                                 </span>
                                 `
                         )
@@ -768,44 +906,29 @@ function articleCard(article) {
 
 
             <h4>
-                ${escapeHtml(
-                    article.english_title ||
-                    article.title ||
-                    "Untitled article"
-                )}
+                ${escapeHtml(title)}
             </h4>
 
 
-            <p>
-                ${escapeHtml(
-                    article.english_summary ||
-                    (
-                        article.topics ||
-                        []
-                    )
-                        .slice(
-                            0,
-                            2
-                        )
-                        .join(" · ")
-                )}
-            </p>
+            ${
+                summary
+                    ? `
+                        <p>
+                            ${escapeHtml(summary)}
+                        </p>
+                    `
+                    : ""
+            }
 
 
             <button
-                onclick="
-                    openArticle(
-                        ${JSON.stringify(
-                            article.id
-                        )}
-                    )
-                "
+                class="article-action"
+                data-article-id="${escapeHtml(article.id)}"
             >
                 Read analysis →
             </button>
 
         </article>
-
     `;
 }
 
@@ -814,18 +937,30 @@ function articleCard(article) {
    ARTICLE LIST
    ========================================================= */
 
-function renderArticles(
-    filtered
-) {
+function renderArticles(filtered) {
 
     const container =
         document.getElementById(
             "articles-list"
         );
 
+
     if (!container) {
         return;
     }
+
+
+    /*
+     * Safety:
+     * Never allow irrelevant / low-score
+     * articles into this view.
+     */
+
+    filtered =
+        filtered.filter(
+            article =>
+                isRelevant(article)
+        );
 
 
     if (
@@ -833,81 +968,55 @@ function renderArticles(
         filtered.length === 0
     ) {
 
-        container.innerHTML = `
-
-            <div
-                class="empty-state"
-            >
-                No articles found for
-                the selected filters.
+        container.innerHTML =
+            `
+            <div class="empty-state">
+                No UPSC-relevant articles found for the selected filters.
             </div>
-
-        `;
+            `;
 
         return;
     }
 
 
     filtered =
-        sortNewestFirst(
-            filtered
-        );
+        sortNewestFirst(filtered);
 
 
     /*
-     * If a specific month is selected,
-     * show that month heading.
-     *
-     * If All Months is selected,
-     * show every month separately.
+     * GROUP BY MONTH
      */
 
     const groups =
         new Map();
 
 
-    filtered.forEach(
-        article => {
+    filtered.forEach(article => {
 
-            const key =
-                getMonthKey(
-                    article
-                );
+        const key =
+            getMonthKey(article);
 
 
-            if (
-                !groups.has(key)
-            ) {
+        if (!groups.has(key)) {
 
-                groups.set(
-                    key,
-                    []
-                );
-            }
-
-
-            groups
-                .get(key)
-                .push(
-                    article
-                );
+            groups.set(
+                key,
+                []
+            );
         }
-    );
 
 
-    /*
-     * Sort month groups newest first.
-     */
+        groups
+            .get(key)
+            .push(article);
+    });
+
 
     const sortedGroups =
         Array.from(
             groups.entries()
-        )
-        .sort(
-            (
-                a,
-                b
-            ) =>
+        ).sort(
+            (a, b) =>
                 b[0].localeCompare(
                     a[0]
                 )
@@ -917,48 +1026,36 @@ function renderArticles(
     container.innerHTML =
         sortedGroups
             .map(
-                (
-                    [
-                        key,
-                        monthArticles
-                    ]
-                ) => `
+                ([key, monthArticles]) =>
+                    `
+                    <section class="month-section">
 
-                    <section
-                        class="month-section"
-                    >
-
-                        <div
-                            class="month-heading"
-                        >
-
+                        <div class="month-heading">
                             ${escapeHtml(
-                                getMonthLabelFromKey(
-                                    key
-                                )
+                                getMonthLabelFromKey(key)
                             )}
-
                         </div>
 
 
-                        <div
-                            class="article-list"
-                        >
+                        <div class="article-list">
 
-                            ${monthArticles
-                                .map(
-                                    articleListItem
-                                )
-                                .join("")
+                            ${
+                                monthArticles
+                                    .map(
+                                        articleListItem
+                                    )
+                                    .join("")
                             }
 
                         </div>
 
                     </section>
-
-                `
+                    `
             )
             .join("");
+
+
+    attachArticleButtons();
 }
 
 
@@ -966,44 +1063,47 @@ function renderArticles(
    ARTICLE LIST ITEM
    ========================================================= */
 
-function articleListItem(
-    article
-) {
+function articleListItem(article) {
 
     const importance =
-        article.importance || 0;
+        getImportance(article);
 
 
     const priority =
         importance >= 9
             ? "high"
-            : importance >= 7
-                ? "medium"
-                : "low";
+            : "medium";
 
 
     const date =
-        getDisplayDate(
-            article
-        );
+        getDisplayDate(article);
+
+
+    const title =
+        article.english_title ||
+        article.title ||
+        "Untitled article";
+
+
+    const topics =
+        getTopics(article);
+
+
+    const gsPapers =
+        getGsPapers(article);
 
 
     return `
+        <article class="list-item">
 
-        <article
-            class="list-item"
-        >
-
-            <div>
+            <div class="list-item-content">
 
                 ${
                     date
                         ? `
-                            <div
-                                class="article-date"
-                            >
-                                ${formatDate(
-                                    date
+                            <div class="article-date">
+                                ${escapeHtml(
+                                    formatDate(date)
                                 )}
                             </div>
                         `
@@ -1011,31 +1111,20 @@ function articleListItem(
                 }
 
 
-                <div
-                    class="article-meta"
-                >
+                <div class="article-meta">
 
-                    <span
-                        class="badge ${priority}"
-                    >
+                    <span class="badge ${priority}">
                         ${importance}/10
                     </span>
 
 
                     ${
-                        (
-                            article.gs_papers ||
-                            []
-                        )
+                        gsPapers
                             .map(
                                 gs =>
                                     `
-                                    <span
-                                        class="badge"
-                                    >
-                                        ${escapeHtml(
-                                            gs
-                                        )}
+                                    <span class="badge">
+                                        ${escapeHtml(gs)}
                                     </span>
                                     `
                             )
@@ -1046,49 +1135,66 @@ function articleListItem(
 
 
                 <h4>
-                    ${escapeHtml(
-                        article.english_title ||
-                        article.title ||
-                        "Untitled article"
-                    )}
+                    ${escapeHtml(title)}
                 </h4>
 
 
-                <p>
-                    ${escapeHtml(
-                        (
-                            article.topics ||
-                            []
-                        ).join(
-                            " · "
-                        )
-                    )}
-                </p>
+                ${
+                    topics.length
+                        ? `
+                            <p>
+                                ${escapeHtml(
+                                    topics.join(" · ")
+                                )}
+                            </p>
+                        `
+                        : ""
+                }
 
             </div>
 
 
             <button
-                class="text-button"
-                onclick="
-                    openArticle(
-                        ${JSON.stringify(
-                            article.id
-                        )}
-                    )
-                "
+                class="article-action"
+                data-article-id="${escapeHtml(article.id)}"
             >
-                Read →
+                Read analysis →
             </button>
 
         </article>
-
     `;
 }
 
 
 /* =========================================================
-   ARTICLE DETAIL
+   ARTICLE BUTTON EVENTS
+   ========================================================= */
+
+function attachArticleButtons() {
+
+    document
+        .querySelectorAll(
+            "[data-article-id]"
+        )
+        .forEach(button => {
+
+            button.addEventListener(
+                "click",
+                () => {
+
+                    openArticle(
+                        button.dataset.articleId
+                    );
+
+                }
+            );
+
+        });
+}
+
+
+/* =========================================================
+   ARTICLE DETAIL MODAL
    ========================================================= */
 
 function openArticle(id) {
@@ -1096,9 +1202,7 @@ function openArticle(id) {
     const article =
         articles.find(
             item =>
-                String(
-                    item.id
-                ) ===
+                String(item.id) ===
                 String(id)
         );
 
@@ -1109,21 +1213,25 @@ function openArticle(id) {
 
 
     const date =
-        getDisplayDate(
-            article
-        );
+        getDisplayDate(article);
 
 
-    let html = `
+    const importance =
+        getImportance(article);
 
+
+    const gsPapers =
+        getGsPapers(article);
+
+
+    let html =
+        `
         ${
             date
                 ? `
-                    <div
-                        class="article-date"
-                    >
-                        ${formatDate(
-                            date
+                    <div class="article-date">
+                        ${escapeHtml(
+                            formatDate(date)
                         )}
                     </div>
                 `
@@ -1131,32 +1239,20 @@ function openArticle(id) {
         }
 
 
-        <div
-            class="article-meta"
-        >
+        <div class="article-meta">
 
-            <span
-                class="badge high"
-            >
-                Importance
-                ${article.importance || 0}/10
+            <span class="badge high">
+                Importance ${importance}/10
             </span>
 
 
             ${
-                (
-                    article.gs_papers ||
-                    []
-                )
+                gsPapers
                     .map(
                         gs =>
                             `
-                            <span
-                                class="badge"
-                            >
-                                ${escapeHtml(
-                                    gs
-                                )}
+                            <span class="badge">
+                                ${escapeHtml(gs)}
                             </span>
                             `
                     )
@@ -1166,9 +1262,7 @@ function openArticle(id) {
         </div>
 
 
-        <h1
-            class="detail-title"
-        >
+        <h1 class="detail-title">
             ${escapeHtml(
                 article.english_title ||
                 article.title ||
@@ -1180,9 +1274,7 @@ function openArticle(id) {
         ${
             article.english_summary
                 ? `
-                    <p
-                        class="detail-summary"
-                    >
+                    <p class="detail-summary">
                         ${escapeHtml(
                             article.english_summary
                         )}
@@ -1190,57 +1282,61 @@ function openArticle(id) {
                 `
                 : ""
         }
-
-    `;
+        `;
 
 
     const sections = [
 
         [
             "Prelims Facts",
-            article.prelims_facts
+            getArray(article.prelims_facts)
         ],
 
         [
             "Mains Notes",
-            article.mains_notes
+            getArray(article.mains_notes)
         ],
 
         [
             "Important Data",
-            article.data_points
+            getArray(article.data_points)
         ],
 
         [
             "Schemes / Programmes",
-            article.schemes
+            getArray(article.schemes)
         ],
 
         [
             "Institutions",
-            article.institutions
+            getArray(article.institutions)
         ],
 
         [
             "Implications",
-            article.implications
+            getArray(article.implications)
         ],
 
         [
             "Possible UPSC Questions",
-            article.possible_questions
+            getArray(article.possible_questions)
+        ],
+
+        [
+            "Keywords",
+            getArray(article.keywords)
+        ],
+
+        [
+            "Flashcards",
+            getArray(article.flashcards)
         ]
 
     ];
 
 
     sections.forEach(
-        (
-            [
-                title,
-                values
-            ]
-        ) => {
+        ([title, values]) => {
 
             if (
                 !Array.isArray(values) ||
@@ -1250,65 +1346,85 @@ function openArticle(id) {
             }
 
 
-            html += `
+            /*
+             * Flashcards can be objects,
+             * so handle them separately.
+             */
 
-                <div
-                    class="detail-section"
-                >
+            const formatted =
+                values
+                    .map(item => {
+
+                        if (
+                            typeof item === "object" &&
+                            item !== null
+                        ) {
+
+                            return (
+                                item.question ||
+                                item.answer ||
+                                JSON.stringify(item)
+                            );
+                        }
+
+                        return String(item);
+                    })
+                    .filter(Boolean);
+
+
+            if (!formatted.length) {
+                return;
+            }
+
+
+            html +=
+                `
+                <div class="detail-section">
 
                     <h4>
-                        ${escapeHtml(
-                            title
-                        )}
+                        ${escapeHtml(title)}
                     </h4>
 
 
                     <ul>
 
-                        ${values
-                            .map(
-                                item =>
-                                    `
-                                    <li>
-                                        ${escapeHtml(
-                                            item
-                                        )}
-                                    </li>
-                                    `
-                            )
-                            .join("")
+                        ${
+                            formatted
+                                .map(
+                                    item =>
+                                        `
+                                        <li>
+                                            ${escapeHtml(item)}
+                                        </li>
+                                        `
+                                )
+                                .join("")
                         }
 
                     </ul>
 
                 </div>
-
-            `;
+                `;
         }
     );
 
 
     if (article.link) {
 
-        html += `
-
-            <div
-                class="detail-section"
-            >
+        html +=
+            `
+            <div class="detail-section">
 
                 <a
-                    href="${escapeHtml(
-                        article.link
-                    )}"
+                    href="${escapeHtml(article.link)}"
                     target="_blank"
-                    rel="noopener"
+                    rel="noopener noreferrer"
                 >
                     Read original PIB release →
                 </a>
 
             </div>
-
-        `;
+            `;
     }
 
 
@@ -1317,6 +1433,7 @@ function openArticle(id) {
             "article-detail"
         );
 
+
     const modal =
         document.getElementById(
             "article-modal"
@@ -1324,17 +1441,13 @@ function openArticle(id) {
 
 
     if (detail) {
-
-        detail.innerHTML =
-            html;
+        detail.innerHTML = html;
     }
 
 
     if (modal) {
-
-        modal.classList.remove(
-            "hidden"
-        );
+        modal.classList.remove("hidden");
+        document.body.classList.add("modal-open");
     }
 }
 
@@ -1348,35 +1461,34 @@ function buildFlashcards() {
     flashcards = [];
 
 
-    articles.forEach(
-        article => {
+    articles.forEach(article => {
 
-            if (
-                !Array.isArray(
-                    article.flashcards
-                )
-            ) {
-                return;
-            }
-
-
-            article.flashcards.forEach(
-                card => {
-
-                    flashcards.push({
-
-                        ...card,
-
-                        article:
-                            article.title
-
-                    });
-
-                }
+        const cards =
+            getArray(
+                article.flashcards
             );
 
-        }
-    );
+
+        cards.forEach(card => {
+
+            if (
+                typeof card === "object" &&
+                card !== null
+            ) {
+
+                flashcards.push({
+                    ...card,
+                    article:
+                        article.title ||
+                        article.english_title ||
+                        ""
+                });
+
+            }
+
+        });
+
+    });
 
 
     currentFlashcard = 0;
@@ -1402,26 +1514,23 @@ function renderFlashcard() {
         flashcards.length === 0
     ) {
 
-        container.innerHTML = `
-
-            <div
-                class="flashcard"
-            >
+        container.innerHTML =
+            `
+            <div class="flashcard">
 
                 <h3>
                     No flashcards yet
                 </h3>
 
-                <p
-                    class="answer"
-                >
+                <p class="answer">
                     Process more PIB articles
                     to generate revision cards.
                 </p>
 
             </div>
+            `;
 
-        `;
+        updateFlashcardProgress();
 
         return;
     }
@@ -1433,15 +1542,11 @@ function renderFlashcard() {
         ];
 
 
-    container.innerHTML = `
+    container.innerHTML =
+        `
+        <div class="flashcard">
 
-        <div
-            class="flashcard"
-        >
-
-            <span
-                class="type"
-            >
+            <span class="type">
                 ${escapeHtml(
                     card.type ||
                     "Concept"
@@ -1460,7 +1565,7 @@ function renderFlashcard() {
             <div
                 id="flash-answer"
                 class="answer"
-                style="display:none"
+                style="display:none;"
             >
                 ${escapeHtml(
                     card.answer ||
@@ -1469,23 +1574,19 @@ function renderFlashcard() {
             </div>
 
 
-            <div
-                class="flashcard-actions"
-            >
+            <div class="flashcard-actions">
 
                 <button
-                    onclick="
-                        showAnswer()
-                    "
+                    class="article-action"
+                    id="show-answer-btn"
                 >
                     Show answer
                 </button>
 
 
                 <button
-                    onclick="
-                        nextFlashcard()
-                    "
+                    class="article-action"
+                    id="next-card-btn"
                 >
                     Next →
                 </button>
@@ -1493,9 +1594,34 @@ function renderFlashcard() {
             </div>
 
         </div>
+        `;
 
-    `;
 
+    document
+        .getElementById(
+            "show-answer-btn"
+        )
+        ?.addEventListener(
+            "click",
+            showAnswer
+        );
+
+
+    document
+        .getElementById(
+            "next-card-btn"
+        )
+        ?.addEventListener(
+            "click",
+            nextFlashcard
+        );
+
+
+    updateFlashcardProgress();
+}
+
+
+function updateFlashcardProgress() {
 
     const progress =
         document.getElementById(
@@ -1503,11 +1629,15 @@ function renderFlashcard() {
         );
 
 
-    if (progress) {
-
-        progress.textContent =
-            `${currentFlashcard + 1} / ${flashcards.length}`;
+    if (!progress) {
+        return;
     }
+
+
+    progress.textContent =
+        flashcards.length
+            ? `${currentFlashcard + 1} / ${flashcards.length}`
+            : "0 / 0";
 }
 
 
@@ -1517,6 +1647,7 @@ function showAnswer() {
         document.getElementById(
             "flash-answer"
         );
+
 
     if (answer) {
 
@@ -1528,7 +1659,13 @@ function showAnswer() {
 
 function nextFlashcard() {
 
+    if (!flashcards.length) {
+        return;
+    }
+
+
     currentFlashcard++;
+
 
     if (
         currentFlashcard >=
@@ -1537,6 +1674,7 @@ function nextFlashcard() {
 
         currentFlashcard = 0;
     }
+
 
     renderFlashcard();
 }
@@ -1549,33 +1687,13 @@ function nextFlashcard() {
 function renderRevision() {
 
     const important =
-        articles
-            .filter(
-                article =>
-                    article.relevant &&
-                    (
-                        article.importance ||
-                        0
-                    ) >= 7
-            )
+        getUPSCArticles()
             .sort(
-                (
-                    a,
-                    b
-                ) =>
-                    (
-                        b.importance ||
-                        0
-                    ) -
-                    (
-                        a.importance ||
-                        0
-                    )
+                (a, b) =>
+                    getImportance(b) -
+                    getImportance(a)
             )
-            .slice(
-                0,
-                15
-            );
+            .slice(0, 15);
 
 
     const container =
@@ -1589,33 +1707,48 @@ function renderRevision() {
     }
 
 
+    if (!important.length) {
+
+        container.innerHTML =
+            `
+            <div class="empty-state">
+                No high-priority articles available.
+            </div>
+            `;
+
+        return;
+    }
+
+
     container.innerHTML =
-        important
-            .map(
-                articleListItem
-            )
-            .join("");
+        `
+        <div class="article-list">
+            ${
+                important
+                    .map(articleListItem)
+                    .join("")
+            }
+        </div>
+        `;
+
+
+    attachArticleButtons();
 }
 
 
 /* =========================================================
-   GS
+   GS PAPERS
    ========================================================= */
 
-function renderGS(
-    gs
-) {
+function renderGS(gs) {
 
     const filtered =
-        articles.filter(
-            article =>
-                (
-                    article.gs_papers ||
-                    []
-                ).includes(
-                    gs
-                )
-        );
+        getUPSCArticles()
+            .filter(
+                article =>
+                    getGsPapers(article)
+                        .includes(gs)
+            );
 
 
     const container =
@@ -1629,32 +1762,35 @@ function renderGS(
     }
 
 
-    container.innerHTML = `
-
+    container.innerHTML =
+        `
         <h3>
-            ${escapeHtml(
-                gs
-            )}
+            ${escapeHtml(gs)}
             Current Affairs
         </h3>
 
 
-        <div
-            class="article-list"
-        >
+        ${
+            filtered.length
+                ? `
+                    <div class="article-list">
+                        ${
+                            sortNewestFirst(filtered)
+                                .map(articleListItem)
+                                .join("")
+                        }
+                    </div>
+                `
+                : `
+                    <div class="empty-state">
+                        No relevant articles for ${escapeHtml(gs)}.
+                    </div>
+                `
+        }
+        `;
 
-            ${sortNewestFirst(
-                filtered
-            )
-                .map(
-                    articleListItem
-                )
-                .join("")
-            }
 
-        </div>
-
-    `;
+    attachArticleButtons();
 }
 
 
@@ -1662,121 +1798,147 @@ function renderGS(
    FILTER EVENTS
    ========================================================= */
 
-const monthFilter =
-    document.getElementById(
-        "month-filter"
-    );
+function setupFilters() {
+
+    const monthFilter =
+        document.getElementById(
+            "month-filter"
+        );
 
 
-if (monthFilter) {
+    if (monthFilter) {
 
-    monthFilter.addEventListener(
-        "change",
-        event => {
+        monthFilter.addEventListener(
+            "change",
+            event => {
 
-            selectedMonth =
-                event.target.value ||
-                "ALL";
+                selectedMonth =
+                    event.target.value ||
+                    "ALL";
 
-            applyAllFilters();
+                applyAllFilters();
 
-        }
-    );
-}
-
-
-const importanceFilter =
-    document.getElementById(
-        "importance-filter"
-    );
+            }
+        );
+    }
 
 
-const gsFilter =
-    document.getElementById(
-        "gs-filter"
-    );
-
-
-const relevanceFilter =
-    document.getElementById(
+    [
+        "importance-filter",
+        "gs-filter",
         "relevance-filter"
-    );
-
-
-[
-    importanceFilter,
-    gsFilter,
-    relevanceFilter
-]
-    .filter(Boolean)
-    .forEach(
-        element => {
+    ]
+        .map(
+            id =>
+                document.getElementById(id)
+        )
+        .filter(Boolean)
+        .forEach(element => {
 
             element.addEventListener(
                 "change",
                 applyAllFilters
             );
 
-        }
-    );
+        });
+
+
+    /*
+     * GS cards
+     */
+
+    document
+        .querySelectorAll(
+            ".gs-card"
+        )
+        .forEach(card => {
+
+            card.addEventListener(
+                "click",
+                () => {
+
+                    const gs =
+                        card.dataset.gs;
+
+                    showView("gs");
+
+                    renderGS(gs);
+
+                }
+            );
+
+        });
+}
 
 
 /* =========================================================
    NAVIGATION
    ========================================================= */
 
-document
-    .querySelectorAll(
-        ".nav-item"
-    )
-    .forEach(
-        button => {
+function setupNavigation() {
+
+    /*
+     * Main navigation.
+     */
+
+    document
+        .querySelectorAll(
+            ".nav-item"
+        )
+        .forEach(button => {
 
             button.addEventListener(
                 "click",
-                () =>
+                () => {
+
                     showView(
                         button.dataset.view
-                    )
+                    );
+
+                }
             );
 
-        }
-    );
+        });
 
 
-document
-    .querySelectorAll(
-        "[data-view]"
-    )
-    .forEach(
-        button => {
+    /*
+     * "View all" button.
+     */
+
+    document
+        .querySelectorAll(
+            '.text-button[data-view]'
+        )
+        .forEach(button => {
 
             button.addEventListener(
                 "click",
-                () =>
+                () => {
+
                     showView(
                         button.dataset.view
-                    )
+                    );
+
+                }
             );
 
-        }
-    );
+        });
+}
 
 
-function showView(
-    view
-) {
+function showView(view) {
 
     document
         .querySelectorAll(
             ".view"
         )
-        .forEach(
-            element =>
-                element.classList.remove(
-                    "active-view"
-                )
-        );
+        .forEach(element => {
+
+            element.classList.remove(
+                "active-view"
+            );
+
+        });
 
 
     const target =
@@ -1797,32 +1959,24 @@ function showView(
         .querySelectorAll(
             ".nav-item"
         )
-        .forEach(
-            button =>
-                button.classList.toggle(
-                    "active",
-                    button.dataset.view ===
-                        view
-                )
-        );
+        .forEach(button => {
+
+            button.classList.toggle(
+                "active",
+                button.dataset.view ===
+                view
+            );
+
+        });
 
 
     const titles = {
 
-        dashboard:
-            "Dashboard",
-
-        articles:
-            "Current Affairs",
-
-        gs:
-            "GS Papers",
-
-        flashcards:
-            "Flashcards",
-
-        revision:
-            "Revision"
+        dashboard: "Dashboard",
+        articles: "Current Affairs",
+        gs: "GS Papers",
+        flashcards: "Flashcards",
+        revision: "Revision"
 
     };
 
@@ -1839,13 +1993,18 @@ function showView(
    SEARCH
    ========================================================= */
 
-const search =
-    document.getElementById(
-        "global-search"
-    );
+function setupSearch() {
+
+    const search =
+        document.getElementById(
+            "global-search"
+        );
 
 
-if (search) {
+    if (!search) {
+        return;
+    }
+
 
     search.addEventListener(
         "input",
@@ -1865,12 +2024,20 @@ if (search) {
             }
 
 
-            const filtered =
-                articles.filter(
+            /*
+             * Search only the UPSC feed.
+             */
+
+            let filtered =
+                getUPSCArticles();
+
+
+            filtered =
+                filtered.filter(
                     article => {
 
                         const title =
-                            (
+                            String(
                                 article.english_title ||
                                 article.title ||
                                 ""
@@ -1879,7 +2046,7 @@ if (search) {
 
 
                         const summary =
-                            (
+                            String(
                                 article.english_summary ||
                                 ""
                             )
@@ -1887,7 +2054,7 @@ if (search) {
 
 
                         const raw =
-                            (
+                            String(
                                 article.raw_text ||
                                 ""
                             )
@@ -1895,51 +2062,24 @@ if (search) {
 
 
                         const topics =
-                            (
-                                article.topics ||
-                                []
-                            )
+                            getTopics(article)
                                 .join(" ")
                                 .toLowerCase();
 
 
                         return (
-
-                            title.includes(
-                                query
-                            )
-
-                            ||
-
-                            summary.includes(
-                                query
-                            )
-
-                            ||
-
-                            raw.includes(
-                                query
-                            )
-
-                            ||
-
-                            topics.includes(
-                                query
-                            )
-
+                            title.includes(query) ||
+                            summary.includes(query) ||
+                            raw.includes(query) ||
+                            topics.includes(query)
                         );
                     }
                 );
 
 
-            showView(
-                "articles"
-            );
+            showView("articles");
 
-
-            renderArticles(
-                filtered
-            );
+            renderArticles(filtered);
 
         }
     );
@@ -1950,29 +2090,57 @@ if (search) {
    MODAL
    ========================================================= */
 
-const closeModal =
-    document.getElementById(
-        "close-modal"
-    );
+function setupModal() {
+
+    const closeModal =
+        document.getElementById(
+            "close-modal"
+        );
 
 
-if (closeModal) {
+    if (closeModal) {
 
-    closeModal.addEventListener(
-        "click",
-        () => {
-
-            const modal =
-                document.getElementById(
-                    "article-modal"
-                );
+        closeModal.addEventListener(
+            "click",
+            closeArticleModal
+        );
+    }
 
 
-            if (modal) {
+    const articleModal =
+        document.getElementById(
+            "article-modal"
+        );
 
-                modal.classList.add(
-                    "hidden"
-                );
+
+    if (articleModal) {
+
+        articleModal.addEventListener(
+            "click",
+            event => {
+
+                if (
+                    event.target ===
+                    articleModal
+                ) {
+
+                    closeArticleModal();
+                }
+
+            }
+        );
+    }
+
+
+    document.addEventListener(
+        "keydown",
+        event => {
+
+            if (
+                event.key === "Escape"
+            ) {
+
+                closeArticleModal();
             }
 
         }
@@ -1980,30 +2148,24 @@ if (closeModal) {
 }
 
 
-const articleModal =
-    document.getElementById(
-        "article-modal"
-    );
+function closeArticleModal() {
+
+    const modal =
+        document.getElementById(
+            "article-modal"
+        );
 
 
-if (articleModal) {
+    if (modal) {
 
-    articleModal.addEventListener(
-        "click",
-        event => {
+        modal.classList.add(
+            "hidden"
+        );
+    }
 
-            if (
-                event.target.id ===
-                "article-modal"
-            ) {
 
-                event.currentTarget
-                    .classList.add(
-                        "hidden"
-                    );
-            }
-
-        }
+    document.body.classList.remove(
+        "modal-open"
     );
 }
 
@@ -2012,13 +2174,18 @@ if (articleModal) {
    REFRESH
    ========================================================= */
 
-const refreshButton =
-    document.getElementById(
-        "refresh-btn"
-    );
+function setupRefresh() {
+
+    const refreshButton =
+        document.getElementById(
+            "refresh-btn"
+        );
 
 
-if (refreshButton) {
+    if (!refreshButton) {
+        return;
+    }
+
 
     refreshButton.addEventListener(
         "click",
@@ -2037,9 +2204,8 @@ function setText(
 ) {
 
     const element =
-        document.getElementById(
-            id
-        );
+        document.getElementById(id);
+
 
     if (element) {
 
@@ -2049,9 +2215,7 @@ function setText(
 }
 
 
-function showLoadError(
-    message
-) {
+function showLoadError(message) {
 
     const container =
         document.getElementById(
@@ -2059,26 +2223,21 @@ function showLoadError(
         );
 
 
-    if (container) {
-
-        container.innerHTML = `
-
-            <div
-                class="empty-state"
-            >
-                ${escapeHtml(
-                    message
-                )}
-            </div>
-
-        `;
+    if (!container) {
+        return;
     }
+
+
+    container.innerHTML =
+        `
+        <div class="empty-state">
+            ${escapeHtml(message)}
+        </div>
+        `;
 }
 
 
-function escapeHtml(
-    value
-) {
+function escapeHtml(value) {
 
     if (
         value === null ||
@@ -2090,36 +2249,9 @@ function escapeHtml(
 
 
     return String(value)
-
-        .replaceAll(
-            "&",
-            "&amp;"
-        )
-
-        .replaceAll(
-            "<",
-            "&lt;"
-        )
-
-        .replaceAll(
-            ">",
-            "&gt;"
-        )
-
-        .replaceAll(
-            '"',
-            "&quot;"
-        )
-
-        .replaceAll(
-            "'",
-            "&#039;"
-        );
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
 }
-
-
-/* =========================================================
-   INITIALISE
-   ========================================================= */
-
-loadArticles();

@@ -1070,4 +1070,35 @@ button {
     .detail-title {
         font-size: 24px;
     }
+   /* =========================================================
+   FINAL DASHBOARD ARTICLE GRID FIX
+   ========================================================= */
+
+#recent-articles {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 16px !important;
+    align-items: stretch !important;
+}
+
+#recent-articles .article-card {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+}
+
+/* Keep two columns on desktop/tablet */
+@media (min-width: 821px) {
+    #recent-articles {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+/* One column only on phones */
+@media (max-width: 820px) {
+    #recent-articles {
+        grid-template-columns: 1fr !important;
+    }
+}
 }

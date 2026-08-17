@@ -2,7 +2,6 @@
 <html lang="en">
 
 <head>
-
     <meta charset="UTF-8">
 
     <meta
@@ -21,14 +20,11 @@
         rel="stylesheet"
         href="styles.css"
     >
-
 </head>
-
 
 <body>
 
 <div class="app">
-
 
     <!-- =====================================================
          SIDEBAR
@@ -63,7 +59,10 @@
                 class="nav-item active"
                 data-view="dashboard"
             >
-                <span class="nav-icon">◈</span>
+                <span class="nav-icon">
+                    ◈
+                </span>
+
                 Dashboard
             </button>
 
@@ -72,7 +71,10 @@
                 class="nav-item"
                 data-view="articles"
             >
-                <span class="nav-icon">≡</span>
+                <span class="nav-icon">
+                    ≡
+                </span>
+
                 Current Affairs
             </button>
 
@@ -81,7 +83,10 @@
                 class="nav-item"
                 data-view="gs"
             >
-                <span class="nav-icon">◫</span>
+                <span class="nav-icon">
+                    ◫
+                </span>
+
                 GS Papers
             </button>
 
@@ -90,7 +95,10 @@
                 class="nav-item"
                 data-view="flashcards"
             >
-                <span class="nav-icon">▣</span>
+                <span class="nav-icon">
+                    ▣
+                </span>
+
                 Flashcards
             </button>
 
@@ -99,7 +107,10 @@
                 class="nav-item"
                 data-view="revision"
             >
-                <span class="nav-icon">✓</span>
+                <span class="nav-icon">
+                    ✓
+                </span>
+
                 Revision
             </button>
 
@@ -113,9 +124,8 @@
     </aside>
 
 
-
     <!-- =====================================================
-         MAIN CONTENT
+         MAIN
          ===================================================== -->
 
     <main class="main">
@@ -180,7 +190,6 @@
         </header>
 
 
-
         <!-- =================================================
              DASHBOARD
              ================================================= -->
@@ -189,7 +198,6 @@
             id="dashboard-view"
             class="view active-view"
         >
-
 
             <div class="hero">
 
@@ -231,14 +239,11 @@
             </div>
 
 
-            <!-- HERO STATUS -->
-
             <div
                 class="hero-fetch-status"
-                style="display: none;"
+                style="display:none"
             >
             </div>
-
 
 
             <!-- =================================================
@@ -313,7 +318,6 @@
             </div>
 
 
-
             <!-- =================================================
                  RECENT ARTICLES
                  ================================================= -->
@@ -343,12 +347,12 @@
             </div>
 
 
-            <div id="recent-articles">
+            <div
+                id="recent-articles"
+            >
             </div>
 
-
         </section>
-
 
 
         <!-- =================================================
@@ -359,7 +363,6 @@
             id="articles-view"
             class="view"
         >
-
 
             <div class="section-header">
 
@@ -378,15 +381,9 @@
             </div>
 
 
-
-            <!-- =================================================
-                 FILTER BAR
-                 ================================================= -->
+            <!-- FILTER BAR -->
 
             <div class="filters">
-
-
-                <!-- MONTH -->
 
                 <select
                     id="month-filter"
@@ -399,8 +396,6 @@
 
                 </select>
 
-
-                <!-- IMPORTANCE -->
 
                 <select
                     id="importance-filter"
@@ -429,8 +424,6 @@
 
                 </select>
 
-
-                <!-- GS -->
 
                 <select
                     id="gs-filter"
@@ -464,8 +457,6 @@
                 </select>
 
 
-                <!-- RELEVANCE -->
-
                 <select
                     id="relevance-filter"
                     aria-label="Filter by relevance"
@@ -485,21 +476,15 @@
 
                 </select>
 
-
             </div>
 
 
-
-            <!-- =================================================
-                 ARTICLES
-                 ================================================= -->
-
-            <div id="articles-list">
+            <div
+                id="articles-list"
+            >
             </div>
-
 
         </section>
-
 
 
         <!-- =================================================
@@ -510,7 +495,6 @@
             id="gs-view"
             class="view"
         >
-
 
             <div class="section-header">
 
@@ -531,7 +515,6 @@
 
             <div class="gs-grid">
 
-
                 <button
                     class="gs-card"
                     data-gs="GS1"
@@ -543,7 +526,7 @@
 
                     <p>
                         History, Geography,
-                        Society & Culture
+                        Society &amp; Culture
                     </p>
 
                 </button>
@@ -560,7 +543,7 @@
 
                     <p>
                         Polity, Governance,
-                        Social Justice & IR
+                        Social Justice &amp; IR
                     </p>
 
                 </button>
@@ -577,7 +560,7 @@
 
                     <p>
                         Economy, Environment,
-                        Science & Security
+                        Science &amp; Security
                     </p>
 
                 </button>
@@ -594,7 +577,7 @@
 
                     <p>
                         Ethics, Integrity
-                        & Aptitude
+                        &amp; Aptitude
                     </p>
 
                 </button>
@@ -611,24 +594,21 @@
 
                     <p>
                         Facts, concepts,
-                        institutions & schemes
+                        institutions &amp; schemes
                     </p>
 
                 </button>
-
 
             </div>
 
 
             <div
                 id="gs-articles"
-                style="margin-top: 35px;"
+                style="margin-top:35px;"
             >
             </div>
 
-
         </section>
-
 
 
         <!-- =================================================
@@ -639,7 +619,6 @@
             id="flashcards-view"
             class="view"
         >
-
 
             <div class="section-header">
 
@@ -658,17 +637,19 @@
             </div>
 
 
-            <div id="flashcard-container">
+            <div
+                id="flashcard-container"
+            >
             </div>
 
 
-            <div id="flashcard-progress">
+            <div
+                id="flashcard-progress"
+            >
                 0 / 0
             </div>
 
-
         </section>
-
 
 
         <!-- =================================================
@@ -679,7 +660,6 @@
             id="revision-view"
             class="view"
         >
-
 
             <div class="section-header">
 
@@ -700,10 +680,10 @@
 
             <p
                 style="
-                    color: #737985;
-                    margin-top: -8px;
-                    margin-bottom: 24px;
-                    line-height: 1.6;
+                    color:#737985;
+                    margin-top:-8px;
+                    margin-bottom:24px;
+                    line-height:1.6;
                 "
             >
                 Your highest-priority UPSC
@@ -711,17 +691,16 @@
             </p>
 
 
-            <div id="revision-list">
+            <div
+                id="revision-list"
+            >
             </div>
 
-
         </section>
-
 
     </main>
 
 </div>
-
 
 
 <!-- =========================================================
@@ -733,7 +712,9 @@
     class="hidden"
 >
 
-    <div class="modal-content">
+    <div
+        class="modal-content"
+    >
 
         <button
             id="close-modal"
@@ -743,13 +724,14 @@
         </button>
 
 
-        <div id="article-detail">
+        <div
+            id="article-detail"
+        >
         </div>
 
     </div>
 
 </div>
-
 
 
 <!-- =========================================================
@@ -761,14 +743,14 @@
 ></script>
 
 
-
 <!-- =========================================================
      APP
      ========================================================= -->
 
-<script src="app.js"></script>
+<script
+    src="app.js"
+></script>
 
 
 </body>
-
 </html>

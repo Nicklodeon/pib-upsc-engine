@@ -1701,7 +1701,8 @@ function getArticlesForPDF() {
     let result =
         articles.filter(
             article =>
-                article.relevant === true
+                article.relevant === true &&
+                Number(article.importance || 0) >= 7
         );
 
 

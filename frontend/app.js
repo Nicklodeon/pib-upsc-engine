@@ -11,18 +11,90 @@ const db = createClient(
     SUPABASE_KEY
 );
 
+
 let articles = [];
 let flashcards = [];
+
 let currentFlashcard = 0;
 
 
 /* ==================================================
+   DATE HELPERS
+   ================================================== */
+
+/*
+ * Prefer the actual PIB publication date.
+ *
+ * If PIB did not provide one, use created_at,
+ * which represents when the article entered
+ * the database.
+ */
+
+function getArticleDate(article) {
+
+    return (
+        article.published_at ||
+        article.created_at ||
+        null
+    );
+}
+
+
+function formatDate(dateValue) {
+
+    if (!dateValue) {
+        return "Recently fetched";
+    }
+
+    const date =
+        new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) {
+        return "Recently fetched";
+    }
+
+    return date.toLocaleDateString(
+        "en-IN",
+        {
+            day: "2-digit",
+            month: "short",
+            year: "numeric"
+        }
+    );
+}
+
+
+function monthYear(article) {
+
+    const dateValue =
+        getArticleDate(article);
+
+    if (!dateValue) {
+        return "RECENTLY FETCHED";
+    }
+
+    const date =
+        new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) {
+        return "RECENTLY FETCHED";
+    }
+
+    return date.toLocaleDateString(
+        "en-IN",
+        {
+            month: "long",
+            year: "numeric"
+        }
+    ).toUpperCase();
+}
+
+
+/* ==================================================
    LOAD DATA
-================================================== */
+   ================================================== */
 
 async function loadArticles() {
-
-    console.log("Loading articles...");
 
     const {
         data,
@@ -33,10 +105,9 @@ async function loadArticles() {
         .eq("relevant", true)
         .gte("importance", 7)
         .order(
-            "published_at",
+            "id",
             {
-                ascending: false,
-                nullsFirst: false
+                ascending: false
             }
         );
 
@@ -48,18 +119,18 @@ async function loadArticles() {
         );
 
         alert(
-            "Unable to load articles. Check the browser console."
+            "Unable to load articles."
         );
 
         return;
     }
 
+    articles = data || [];
+
     console.log(
         "Articles loaded:",
-        data
+        articles.length
     );
-
-    articles = data || [];
 
     buildFlashcards();
 
@@ -73,7 +144,7 @@ async function loadArticles() {
 
 /* ==================================================
    DASHBOARD
-================================================== */
+   ================================================== */
 
 function renderDashboard() {
 
@@ -105,47 +176,46 @@ function renderDashboard() {
             "hero-count"
         );
 
-    if (heroCount) {
-        heroCount.textContent = total;
-    }
-
-
     const totalCount =
         document.getElementById(
             "total-count"
         );
-
-    if (totalCount) {
-        totalCount.textContent = total;
-    }
-
 
     const processedCount =
         document.getElementById(
             "processed-count"
         );
 
-    if (processedCount) {
-        processedCount.textContent =
-            processed;
-    }
-
-
     const relevantCount =
         document.getElementById(
             "relevant-count"
         );
 
-    if (relevantCount) {
-        relevantCount.textContent =
-            relevant;
-    }
-
-
     const importantCount =
         document.getElementById(
             "important-count"
         );
+
+
+    if (heroCount) {
+        heroCount.textContent =
+            total;
+    }
+
+    if (totalCount) {
+        totalCount.textContent =
+            total;
+    }
+
+    if (processedCount) {
+        processedCount.textContent =
+            processed;
+    }
+
+    if (relevantCount) {
+        relevantCount.textContent =
+            relevant;
+    }
 
     if (importantCount) {
         importantCount.textContent =
@@ -153,8 +223,15 @@ function renderDashboard() {
     }
 
 
+    /*
+     * Articles are already ordered by newest
+     * database ID, so the newest fetched
+     * articles appear first here as well.
+     */
+
     const recent =
         articles.slice(0, 6);
+
 
     const recentContainer =
         document.getElementById(
@@ -173,7 +250,7 @@ function renderDashboard() {
 
 /* ==================================================
    ARTICLE CARD
-================================================== */
+   ================================================== */
 
 function articleCard(article) {
 
@@ -195,7 +272,7 @@ function articleCard(article) {
             .join(" · ");
 
 
-    const title =
+    const displayTitle =
         article.english_title ||
         article.title ||
         "Untitled article";
@@ -206,26 +283,39 @@ function articleCard(article) {
         "";
 
 
+    const topics =
+        (article.topics || [])
+            .slice(0, 2)
+            .join(" · ");
+
+
     return `
+
         <article class="article-card">
 
-            <div class="article-meta">
+            <div class="article-date">
+                ${escapeHtml(
+                    formatDate(
+                        getArticleDate(article)
+                    )
+                )}
+            </div>
 
-                <span class="article-date">
-                    ${formatDate(
-                        article.published_at
-                    )}
-                </span>
+
+            <div class="article-meta">
 
                 <span class="badge ${priority}">
                     ${importance}/10
                 </span>
 
+
                 ${
                     gs
-                        ? `<span class="badge">
-                            ${escapeHtml(gs)}
-                           </span>`
+                        ? `
+                            <span class="badge">
+                                ${escapeHtml(gs)}
+                            </span>
+                          `
                         : ""
                 }
 
@@ -233,24 +323,26 @@ function articleCard(article) {
 
 
             <h4>
-                ${escapeHtml(title)}
+                ${escapeHtml(
+                    displayTitle
+                )}
             </h4>
 
 
             ${
                 summary
-                    ? `<p>
-                        ${escapeHtml(
-                            summary.slice(0, 180)
-                        )}
-                       </p>`
+                    ? `
+                        <p>
+                            ${escapeHtml(
+                                summary
+                            )}
+                        </p>
+                      `
                     : `
                         <p>
-                            ${(article.topics || [])
-                                .slice(0, 2)
-                                .join(" · ")}
+                            ${escapeHtml(topics)}
                         </p>
-                    `
+                      `
             }
 
 
@@ -261,13 +353,120 @@ function articleCard(article) {
             </button>
 
         </article>
+
+    `;
+}
+
+
+/* ==================================================
+   ARTICLE LIST
+   ================================================== */
+
+function articleListItem(article) {
+
+    const importance =
+        article.importance || 0;
+
+
+    const priority =
+        importance >= 9
+            ? "high"
+            : importance >= 7
+                ? "medium"
+                : "low";
+
+
+    const displayTitle =
+        article.english_title ||
+        article.title ||
+        "Untitled article";
+
+
+    const topics =
+        (article.topics || [])
+            .join(" · ");
+
+
+    return `
+
+        <article class="list-item">
+
+            <div>
+
+                <div class="article-date">
+                    ${escapeHtml(
+                        formatDate(
+                            getArticleDate(article)
+                        )
+                    )}
+                </div>
+
+
+                <div class="article-meta">
+
+                    <span
+                        class="badge ${priority}"
+                    >
+                        ${importance}/10
+                    </span>
+
+
+                    ${
+                        (article.gs_papers || [])
+                            .map(
+                                gs =>
+                                    `
+                                    <span
+                                        class="badge"
+                                    >
+                                        ${escapeHtml(gs)}
+                                    </span>
+                                    `
+                            )
+                            .join("")
+                    }
+
+                </div>
+
+
+                <h4>
+                    ${escapeHtml(
+                        displayTitle
+                    )}
+                </h4>
+
+
+                ${
+                    topics
+                        ? `
+                            <p>
+                                ${escapeHtml(
+                                    topics
+                                )}
+                            </p>
+                          `
+                        : ""
+                }
+
+            </div>
+
+
+            <button
+                class="text-button"
+                onclick="openArticle(${article.id})"
+            >
+                Read →
+            </button>
+
+        </article>
+
     `;
 }
 
 
 /* ==================================================
    ARTICLES
-================================================== */
+   ================================================== */
 
 function renderArticles(
     filtered = articles
@@ -287,14 +486,24 @@ function renderArticles(
     if (!filtered.length) {
 
         container.innerHTML = `
+
             <div class="empty-state">
                 No UPSC-relevant articles found.
             </div>
+
         `;
 
         return;
     }
 
+
+    /*
+     * Keep the order received from Supabase.
+     *
+     * Supabase is ordering by ID DESC,
+     * therefore the newest fetched articles
+     * stay at the top.
+     */
 
     const groups = {};
 
@@ -303,13 +512,10 @@ function renderArticles(
         article => {
 
             const month =
-                monthYear(
-                    article.published_at
-                );
+                monthYear(article);
 
 
             if (!groups[month]) {
-
                 groups[month] = [];
             }
 
@@ -322,138 +528,58 @@ function renderArticles(
 
 
     container.innerHTML =
+
         Object.entries(groups)
+
             .map(
                 (
-                    [
-                        month,
-                        monthArticles
-                    ]
+                    [month, monthArticles]
                 ) => `
 
-                    <div class="month-section">
+                    <section
+                        class="month-section"
+                    >
 
-                        <div class="month-heading">
+                        <div
+                            class="month-heading"
+                        >
                             ${escapeHtml(month)}
                         </div>
 
-                        <div class="article-list">
+
+                        <div
+                            class="article-list"
+                        >
 
                             ${monthArticles
                                 .map(
                                     articleListItem
                                 )
-                                .join("")}
+                                .join("")
+                            }
 
                         </div>
 
-                    </div>
+                    </section>
 
                 `
             )
+
             .join("");
 }
 
 
 /* ==================================================
-   ARTICLE LIST ITEM
-================================================== */
-
-function articleListItem(article) {
-
-    const importance =
-        article.importance || 0;
-
-
-    const priority =
-        importance >= 9
-            ? "high"
-            : importance >= 7
-                ? "medium"
-                : "low";
-
-
-    const title =
-        article.english_title ||
-        article.title ||
-        "Untitled article";
-
-
-    return `
-        <article class="list-item">
-
-            <div>
-
-                <div class="article-meta">
-
-                    <span class="article-date">
-                        ${formatDate(
-                            article.published_at
-                        )}
-                    </span>
-
-                    <span class="badge ${priority}">
-                        ${importance}/10
-                    </span>
-
-                    ${
-                        (article.gs_papers || [])
-                            .map(
-                                gs =>
-                                    `<span class="badge">
-                                        ${escapeHtml(gs)}
-                                    </span>`
-                            )
-                            .join("")
-                    }
-
-                </div>
-
-
-                <h4>
-                    ${escapeHtml(title)}
-                </h4>
-
-
-                ${
-                    article.english_summary
-                        ? `<p>
-                            ${escapeHtml(
-                                article.english_summary
-                            )}
-                           </p>`
-                        : `
-                            <p>
-                                ${(article.topics || [])
-                                    .join(" · ")}
-                            </p>
-                        `
-                }
-
-            </div>
-
-
-            <button
-                class="text-button"
-                onclick="openArticle(${article.id})"
-            >
-                Read →
-            </button>
-
-        </article>
-    `;
-}
-
-
-/* ==================================================
    ARTICLE DETAIL
-================================================== */
+   ================================================== */
 
 function openArticle(id) {
 
     const article =
         articles.find(
-            a => a.id === id
+            a =>
+                String(a.id) ===
+                String(id)
         );
 
 
@@ -502,28 +628,52 @@ function openArticle(id) {
     ];
 
 
+    const displayTitle =
+        article.english_title ||
+        article.title ||
+        "Untitled article";
+
+
+    const summary =
+        article.english_summary ||
+        (
+            article.raw_text
+                ? article.raw_text.slice(
+                    0,
+                    1200
+                )
+                : ""
+        );
+
+
     let html = `
 
-        <div class="article-meta">
+        <div class="article-date">
+            ${escapeHtml(
+                formatDate(
+                    getArticleDate(article)
+                )
+            )}
+        </div>
 
-            <span class="article-date">
-                ${formatDate(
-                    article.published_at
-                )}
-            </span>
+
+        <div class="article-meta">
 
             <span class="badge high">
                 Importance
                 ${article.importance || 0}/10
             </span>
 
+
             ${
                 (article.gs_papers || [])
                     .map(
                         gs =>
-                            `<span class="badge">
+                            `
+                            <span class="badge">
                                 ${escapeHtml(gs)}
-                            </span>`
+                            </span>
+                            `
                     )
                     .join("")
             }
@@ -532,48 +682,20 @@ function openArticle(id) {
 
 
         <h1 class="detail-title">
-
             ${escapeHtml(
-                article.english_title ||
-                article.title ||
-                "Untitled article"
+                displayTitle
             )}
-
         </h1>
 
 
         ${
-            article.english_summary
+            summary
                 ? `
                     <p class="detail-summary">
                         ${escapeHtml(
-                            article.english_summary
+                            summary
                         )}
                     </p>
-                  `
-                : ""
-        }
-
-
-        ${
-            article.topics &&
-            article.topics.length
-                ? `
-                    <div class="detail-section">
-
-                        <h4>
-                            Topics
-                        </h4>
-
-                        <p>
-                            ${escapeHtml(
-                                article.topics.join(
-                                    " · "
-                                )
-                            )}
-                        </p>
-
-                    </div>
                   `
                 : ""
         }
@@ -582,15 +704,11 @@ function openArticle(id) {
 
 
     sections.forEach(
-        (
-            [
-                title,
-                values
-            ]
-        ) => {
+        ([title, values]) => {
 
             if (
                 !values ||
+                !Array.isArray(values) ||
                 values.length === 0
             ) {
                 return;
@@ -599,24 +717,30 @@ function openArticle(id) {
 
             html += `
 
-                <div class="detail-section">
+                <div
+                    class="detail-section"
+                >
 
                     <h4>
-                        ${title}
+                        ${escapeHtml(title)}
                     </h4>
+
 
                     <ul>
 
                         ${values
                             .map(
                                 item =>
-                                    `<li>
+                                    `
+                                    <li>
                                         ${escapeHtml(
                                             item
                                         )}
-                                    </li>`
+                                    </li>
+                                    `
                             )
-                            .join("")}
+                            .join("")
+                        }
 
                     </ul>
 
@@ -627,36 +751,13 @@ function openArticle(id) {
     );
 
 
-    if (article.keywords &&
-        article.keywords.length) {
-
-        html += `
-
-            <div class="detail-section">
-
-                <h4>
-                    Keywords
-                </h4>
-
-                <p>
-                    ${escapeHtml(
-                        article.keywords.join(
-                            " · "
-                        )
-                    )}
-                </p>
-
-            </div>
-
-        `;
-    }
-
-
     if (article.link) {
 
         html += `
 
-            <div class="detail-section">
+            <div
+                class="detail-section"
+            >
 
                 <a
                     href="${escapeHtml(
@@ -680,21 +781,18 @@ function openArticle(id) {
         );
 
 
-    if (detail) {
-
-        detail.innerHTML =
-            html;
-    }
-
-
     const modal =
         document.getElementById(
             "article-modal"
         );
 
 
-    if (modal) {
+    if (detail) {
+        detail.innerHTML = html;
+    }
 
+
+    if (modal) {
         modal.classList.remove(
             "hidden"
         );
@@ -704,7 +802,7 @@ function openArticle(id) {
 
 /* ==================================================
    FLASHCARDS
-================================================== */
+   ================================================== */
 
 function buildFlashcards() {
 
@@ -715,28 +813,29 @@ function buildFlashcards() {
         article => {
 
             if (
-                !article.flashcards
+                !Array.isArray(
+                    article.flashcards
+                )
             ) {
                 return;
             }
 
 
-            article.flashcards
-                .forEach(
-                    card => {
+            article.flashcards.forEach(
+                card => {
 
-                        flashcards.push({
+                    flashcards.push({
 
-                            ...card,
+                        ...card,
 
-                            article:
-                                article.english_title ||
-                                article.title
+                        article:
+                            article.english_title ||
+                            article.title
 
-                        });
+                    });
 
-                    }
-                );
+                }
+            );
 
         }
     );
@@ -761,9 +860,7 @@ function renderFlashcard() {
     }
 
 
-    if (
-        flashcards.length === 0
-    ) {
+    if (flashcards.length === 0) {
 
         container.innerHTML = `
 
@@ -781,6 +878,17 @@ function renderFlashcard() {
             </div>
 
         `;
+
+
+        const progress =
+            document.getElementById(
+                "flashcard-progress"
+            );
+
+        if (progress) {
+            progress.textContent =
+                "0 / 0";
+        }
 
         return;
     }
@@ -805,7 +913,7 @@ function renderFlashcard() {
 
             <h3>
                 ${escapeHtml(
-                    card.question
+                    card.question || ""
                 )}
             </h3>
 
@@ -816,7 +924,7 @@ function renderFlashcard() {
                 style="display:none"
             >
                 ${escapeHtml(
-                    card.answer
+                    card.answer || ""
                 )}
             </div>
 
@@ -853,6 +961,7 @@ function renderFlashcard() {
 
         progress.textContent =
             `${currentFlashcard + 1} / ${flashcards.length}`;
+
     }
 }
 
@@ -866,7 +975,6 @@ function showAnswer() {
 
 
     if (answer) {
-
         answer.style.display =
             "block";
     }
@@ -884,6 +992,7 @@ function nextFlashcard() {
     ) {
 
         currentFlashcard = 0;
+
     }
 
 
@@ -893,26 +1002,31 @@ function nextFlashcard() {
 
 /* ==================================================
    REVISION
-================================================== */
+   ================================================== */
 
 function renderRevision() {
 
     const important =
+
         articles
+
             .filter(
                 article =>
                     article.importance >= 7 &&
                     article.relevant
             )
+
             .sort(
                 (a, b) =>
-                    b.importance -
-                    a.importance
+                    (
+                        b.importance || 0
+                    ) -
+                    (
+                        a.importance || 0
+                    )
             )
-            .slice(
-                0,
-                15
-            );
+
+            .slice(0, 15);
 
 
     const container =
@@ -927,17 +1041,16 @@ function renderRevision() {
 
 
     container.innerHTML =
+
         important
-            .map(
-                articleListItem
-            )
+            .map(articleListItem)
             .join("");
 }
 
 
 /* ==================================================
-   GS FILTER
-================================================== */
+   GS PAPERS
+   ================================================== */
 
 function renderGS(gs) {
 
@@ -945,8 +1058,7 @@ function renderGS(gs) {
         articles.filter(
             article =>
                 (
-                    article.gs_papers ||
-                    []
+                    article.gs_papers || []
                 ).includes(gs)
         );
 
@@ -973,10 +1085,9 @@ function renderGS(gs) {
         <div class="article-list">
 
             ${filtered
-                .map(
-                    articleListItem
-                )
-                .join("")}
+                .map(articleListItem)
+                .join("")
+            }
 
         </div>
 
@@ -986,7 +1097,7 @@ function renderGS(gs) {
 
 /* ==================================================
    NAVIGATION
-================================================== */
+   ================================================== */
 
 function showView(view) {
 
@@ -1011,17 +1122,21 @@ function showView(view) {
         selectedView.classList.add(
             "active-view"
         );
+
     }
 
 
     document.querySelectorAll(
         ".nav-item"
     ).forEach(
-        button =>
+        button => {
+
             button.classList.toggle(
                 "active",
                 button.dataset.view === view
-            )
+            );
+
+        }
     );
 
 
@@ -1056,23 +1171,24 @@ function showView(view) {
         pageTitle.textContent =
             titles[view] ||
             "Dashboard";
+
     }
 }
 
 
 /* ==================================================
    SEARCH
-================================================== */
+   ================================================== */
 
-const search =
+const globalSearch =
     document.getElementById(
         "global-search"
     );
 
 
-if (search) {
+if (globalSearch) {
 
-    search.addEventListener(
+    globalSearch.addEventListener(
         "input",
         event => {
 
@@ -1100,7 +1216,7 @@ if (search) {
                                 article.title ||
                                 ""
                             )
-                                .toLowerCase();
+                            .toLowerCase();
 
 
                         const originalTitle =
@@ -1108,7 +1224,15 @@ if (search) {
                                 article.title ||
                                 ""
                             )
-                                .toLowerCase();
+                            .toLowerCase();
+
+
+                        const summary =
+                            (
+                                article.english_summary ||
+                                ""
+                            )
+                            .toLowerCase();
 
 
                         const rawText =
@@ -1116,7 +1240,7 @@ if (search) {
                                 article.raw_text ||
                                 ""
                             )
-                                .toLowerCase();
+                            .toLowerCase();
 
 
                         const topics =
@@ -1124,16 +1248,42 @@ if (search) {
                                 article.topics ||
                                 []
                             )
-                                .join(" ")
-                                .toLowerCase();
+                            .join(" ")
+                            .toLowerCase();
 
 
                         return (
-                            title.includes(query) ||
-                            originalTitle.includes(query) ||
-                            rawText.includes(query) ||
-                            topics.includes(query)
+
+                            title.includes(
+                                query
+                            )
+
+                            ||
+
+                            originalTitle.includes(
+                                query
+                            )
+
+                            ||
+
+                            summary.includes(
+                                query
+                            )
+
+                            ||
+
+                            rawText.includes(
+                                query
+                            )
+
+                            ||
+
+                            topics.includes(
+                                query
+                            )
+
                         );
+
                     }
                 );
 
@@ -1146,18 +1296,32 @@ if (search) {
             renderArticles(
                 filtered
             );
+
         }
     );
+
 }
 
 
 /* ==================================================
    FILTERS
-================================================== */
+   ================================================== */
 
 const importanceFilter =
     document.getElementById(
         "importance-filter"
+    );
+
+
+const gsFilter =
+    document.getElementById(
+        "gs-filter"
+    );
+
+
+const relevanceFilter =
+    document.getElementById(
+        "relevance-filter"
     );
 
 
@@ -1167,13 +1331,8 @@ if (importanceFilter) {
         "change",
         applyFilters
     );
+
 }
-
-
-const gsFilter =
-    document.getElementById(
-        "gs-filter"
-    );
 
 
 if (gsFilter) {
@@ -1182,13 +1341,8 @@ if (gsFilter) {
         "change",
         applyFilters
     );
+
 }
-
-
-const relevanceFilter =
-    document.getElementById(
-        "relevance-filter"
-    );
 
 
 if (relevanceFilter) {
@@ -1197,44 +1351,27 @@ if (relevanceFilter) {
         "change",
         applyFilters
     );
+
 }
 
 
 function applyFilters() {
 
-    const importanceElement =
-        document.getElementById(
-            "importance-filter"
-        );
-
-
-    const gsElement =
-        document.getElementById(
-            "gs-filter"
-        );
-
-
-    const relevanceElement =
-        document.getElementById(
-            "relevance-filter"
-        );
-
-
     const importance =
-        importanceElement
-            ? importanceElement.value
+        importanceFilter
+            ? importanceFilter.value
             : "";
 
 
     const gs =
-        gsElement
-            ? gsElement.value
+        gsFilter
+            ? gsFilter.value
             : "";
 
 
     const relevance =
-        relevanceElement
-            ? relevanceElement.value
+        relevanceFilter
+            ? relevanceFilter.value
             : "";
 
 
@@ -1242,12 +1379,12 @@ function applyFilters() {
         [...articles];
 
 
+    /* Importance */
+
     if (importance) {
 
         const min =
-            Number(
-                importance
-            );
+            Number(importance);
 
 
         const max =
@@ -1263,11 +1400,19 @@ function applyFilters() {
         filtered =
             filtered.filter(
                 article =>
-                    article.importance >= min &&
-                    article.importance <= max
+                    (
+                        article.importance || 0
+                    ) >= min &&
+
+                    (
+                        article.importance || 0
+                    ) <= max
             );
+
     }
 
+
+    /* GS */
 
     if (gs) {
 
@@ -1275,12 +1420,14 @@ function applyFilters() {
             filtered.filter(
                 article =>
                     (
-                        article.gs_papers ||
-                        []
+                        article.gs_papers || []
                     ).includes(gs)
             );
+
     }
 
+
+    /* Relevance */
 
     if (relevance) {
 
@@ -1291,6 +1438,7 @@ function applyFilters() {
                         article.relevant
                     ) === relevance
             );
+
     }
 
 
@@ -1301,8 +1449,8 @@ function applyFilters() {
 
 
 /* ==================================================
-   HELPERS
-================================================== */
+   HTML ESCAPE
+   ================================================== */
 
 function escapeHtml(value) {
 
@@ -1312,6 +1460,7 @@ function escapeHtml(value) {
     ) {
 
         return "";
+
     }
 
 
@@ -1344,92 +1493,9 @@ function escapeHtml(value) {
 }
 
 
-function formatDate(
-    dateValue
-) {
-
-    if (!dateValue) {
-
-        return "Date unavailable";
-    }
-
-
-    const date =
-        new Date(
-            dateValue
-        );
-
-
-    if (
-        Number.isNaN(
-            date.getTime()
-        )
-    ) {
-
-        return "Date unavailable";
-    }
-
-
-    return date.toLocaleDateString(
-        "en-IN",
-        {
-            day:
-                "2-digit",
-
-            month:
-                "short",
-
-            year:
-                "numeric"
-        }
-    );
-}
-
-
-function monthYear(
-    dateValue
-) {
-
-    if (!dateValue) {
-
-        return "DATE UNAVAILABLE";
-    }
-
-
-    const date =
-        new Date(
-            dateValue
-        );
-
-
-    if (
-        Number.isNaN(
-            date.getTime()
-        )
-    ) {
-
-        return "DATE UNAVAILABLE";
-    }
-
-
-    return date
-        .toLocaleDateString(
-            "en-IN",
-            {
-                month:
-                    "long",
-
-                year:
-                    "numeric"
-            }
-        )
-        .toUpperCase();
-}
-
-
 /* ==================================================
-   EVENTS
-================================================== */
+   NAVIGATION EVENTS
+   ================================================== */
 
 document.querySelectorAll(
     ".nav-item"
@@ -1465,6 +1531,10 @@ document.querySelectorAll(
 );
 
 
+/* ==================================================
+   GS CARD EVENTS
+   ================================================== */
+
 document.querySelectorAll(
     ".gs-card"
 ).forEach(
@@ -1474,9 +1544,7 @@ document.querySelectorAll(
             "click",
             () => {
 
-                showView(
-                    "gs"
-                );
+                showView("gs");
 
                 renderGS(
                     button.dataset.gs
@@ -1491,7 +1559,7 @@ document.querySelectorAll(
 
 /* ==================================================
    MODAL
-================================================== */
+   ================================================== */
 
 const closeModal =
     document.getElementById(
@@ -1516,10 +1584,12 @@ if (closeModal) {
                 modal.classList.add(
                     "hidden"
                 );
+
             }
 
         }
     );
+
 }
 
 
@@ -1544,16 +1614,18 @@ if (articleModal) {
                     .classList.add(
                         "hidden"
                     );
+
             }
 
         }
     );
+
 }
 
 
 /* ==================================================
-   REFRESH BUTTON
-================================================== */
+   REFRESH
+   ================================================== */
 
 const refreshButton =
     document.getElementById(
@@ -1565,29 +1637,14 @@ if (refreshButton) {
 
     refreshButton.addEventListener(
         "click",
-        async () => {
-
-            refreshButton.disabled =
-                true;
-
-
-            try {
-
-                await loadArticles();
-
-            } finally {
-
-                refreshButton.disabled =
-                    false;
-            }
-
-        }
+        loadArticles
     );
+
 }
 
 
 /* ==================================================
    START APPLICATION
-================================================== */
+   ================================================== */
 
 loadArticles();

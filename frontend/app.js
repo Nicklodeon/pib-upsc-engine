@@ -1,7 +1,7 @@
 /* =========================================================
    PIB UPSC — APP.JS
+   ONLY RELEVANT ARTICLES ARE USED THROUGHOUT THE APP
    Dynamic month slicer + monthly grouping
-   UPSC-relevant dashboard articles only
    ========================================================= */
 
 
@@ -27,6 +27,22 @@ const db = createClient(
    GLOBAL STATE
    ========================================================= */
 
+/*
+ * allArticles
+ * ------------
+ * Raw data returned by Supabase.
+ *
+ * articles
+ * --------
+ * ONLY relevant articles.
+ *
+ * IMPORTANT:
+ * Every screen in the application uses
+ * `articles`, NOT `allArticles`.
+ */
+
+let allArticles = [];
+
 let articles = [];
 
 let flashcards = [];
@@ -41,31 +57,109 @@ let selectedMonth = "ALL";
 
 
 /* =========================================================
+   RELEVANCE
+   ========================================================= */
+
+/*
+ * The database may return the relevant field
+ * in slightly different formats.
+ *
+ * Accepted as RELEVANT:
+ *
+ * true
+ * "true"
+ * TRUE
+ * 1
+ * "1"
+ * yes
+ * "yes"
+ * relevant
+ * "relevant"
+ *
+ * Everything else is treated as NOT relevant.
+ */
+
+function isArticleRelevant(article) {
+
+    if (!article) {
+        return false;
+    }
+
+    const value =
+        article.relevant;
+
+    if (
+        value === true ||
+        value === 1
+    ) {
+        return true;
+    }
+
+    if (
+        typeof value === "string"
+    ) {
+
+        const normalized =
+            value
+                .trim()
+                .toLowerCase();
+
+        return (
+            normalized === "true" ||
+            normalized === "1" ||
+            normalized === "yes" ||
+            normalized === "relevant"
+        );
+    }
+
+    return false;
+}
+
+
+/* =========================================================
    DATE HELPERS
    ========================================================= */
 
 function getArticleDate(article) {
 
     const candidates = [
+
         article.published_at,
+
         article.fetched_at,
+
         article.created_at,
+
         article.inserted_at,
+
         article.updated_at
+
     ];
 
-    for (const value of candidates) {
+
+    for (
+        const value of candidates
+    ) {
 
         if (!value) {
             continue;
         }
 
-        const date = new Date(value);
 
-        if (!Number.isNaN(date.getTime())) {
+        const date =
+            new Date(value);
+
+
+        if (
+            !Number.isNaN(
+                date.getTime()
+            )
+        ) {
+
             return date;
         }
     }
+
 
     return null;
 }
@@ -74,15 +168,23 @@ function getArticleDate(article) {
 function getDisplayDate(article) {
 
     const date =
-        getArticleDate(article);
+        getArticleDate(
+            article
+        );
+
 
     if (date) {
         return date;
     }
 
+
     if (lastFetchTime) {
-        return new Date(lastFetchTime);
+
+        return new Date(
+            lastFetchTime
+        );
     }
+
 
     return null;
 }
@@ -94,14 +196,24 @@ function formatDate(dateValue) {
         return "";
     }
 
+
     const date =
         dateValue instanceof Date
             ? dateValue
-            : new Date(dateValue);
+            : new Date(
+                dateValue
+            );
 
-    if (Number.isNaN(date.getTime())) {
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+
         return "";
     }
+
 
     return date.toLocaleDateString(
         "en-IN",
@@ -117,28 +229,42 @@ function formatDate(dateValue) {
 function getMonthKey(article) {
 
     const date =
-        getDisplayDate(article);
+        getDisplayDate(
+            article
+        );
+
 
     if (!date) {
         return "UNKNOWN";
     }
 
+
     return `${date.getFullYear()}-${String(
         date.getMonth() + 1
-    ).padStart(2, "0")}`;
+    ).padStart(
+        2,
+        "0"
+    )}`;
 }
 
 
 function getMonthLabelFromKey(key) {
 
-    if (!key || key === "UNKNOWN") {
+    if (
+        !key ||
+        key === "UNKNOWN"
+    ) {
+
         return "RECENT ARTICLES";
     }
+
 
     const [
         year,
         month
-    ] = key.split("-");
+    ] =
+        key.split("-");
+
 
     const date =
         new Date(
@@ -146,6 +272,7 @@ function getMonthLabelFromKey(key) {
             Number(month) - 1,
             1
         );
+
 
     return date
         .toLocaleDateString(
@@ -160,37 +287,7 @@ function getMonthLabelFromKey(key) {
 
 
 /* =========================================================
-   RELEVANCE HELPER
-   ========================================================= */
-
-/*
- * Supabase may return boolean values as:
- *
- * true
- * "true"
- * 1
- * "1"
- *
- * This helper makes the dashboard robust
- * against all of those formats.
- */
-
-function isArticleRelevant(article) {
-
-    const value =
-        article?.relevant;
-
-    return (
-        value === true ||
-        value === "true" ||
-        value === 1 ||
-        value === "1"
-    );
-}
-
-
-/* =========================================================
-   IMPORTANCE HELPER
+   IMPORTANCE
    ========================================================= */
 
 function getImportance(article) {
@@ -200,9 +297,16 @@ function getImportance(article) {
             article?.importance || 0
         );
 
-    if (Number.isNaN(value)) {
+
+    if (
+        Number.isNaN(
+            value
+        )
+    ) {
+
         return 0;
     }
+
 
     return value;
 }
@@ -211,15 +315,26 @@ function getImportance(article) {
 function getPriorityClass(article) {
 
     const importance =
-        getImportance(article);
+        getImportance(
+            article
+        );
 
-    if (importance >= 9) {
+
+    if (
+        importance >= 9
+    ) {
+
         return "high";
     }
 
-    if (importance >= 7) {
+
+    if (
+        importance >= 7
+    ) {
+
         return "medium";
     }
+
 
     return "low";
 }
@@ -232,11 +347,15 @@ function getPriorityClass(article) {
 function articleTimestamp(article) {
 
     const date =
-        getArticleDate(article);
+        getArticleDate(
+            article
+        );
+
 
     if (!date) {
         return 0;
     }
+
 
     return date.getTime();
 }
@@ -245,7 +364,10 @@ function articleTimestamp(article) {
 function sortNewestFirst(list) {
 
     return [...list].sort(
-        (a, b) =>
+        (
+            a,
+            b
+        ) =>
             articleTimestamp(b) -
             articleTimestamp(a)
     );
@@ -256,31 +378,40 @@ function sortNewestFirst(list) {
    LOADING
    ========================================================= */
 
-function setLoading(loading) {
+function setLoading(
+    loading
+) {
 
-    isLoading = loading;
+    isLoading =
+        loading;
+
 
     const button =
         document.getElementById(
             "refresh-btn"
         );
 
+
     if (!button) {
         return;
     }
 
+
     button.disabled =
         loading;
+
 
     button.style.opacity =
         loading
             ? "0.55"
             : "";
 
+
     button.style.cursor =
         loading
             ? "wait"
             : "";
+
 
     button.classList.toggle(
         "loading",
@@ -296,9 +427,11 @@ function updateLastUpdated() {
             "last-updated"
         );
 
+
     if (!element) {
         return;
     }
+
 
     if (!lastFetchTime) {
 
@@ -308,10 +441,12 @@ function updateLastUpdated() {
         return;
     }
 
+
     const date =
         new Date(
             lastFetchTime
         );
+
 
     element.textContent =
         `Updated ${date.toLocaleTimeString(
@@ -334,7 +469,11 @@ async function loadArticles() {
         return;
     }
 
-    setLoading(true);
+
+    setLoading(
+        true
+    );
+
 
     try {
 
@@ -345,6 +484,7 @@ async function loadArticles() {
             .from("articles")
             .select("*");
 
+
         if (error) {
 
             console.error(
@@ -352,56 +492,111 @@ async function loadArticles() {
                 error
             );
 
+
             showLoadError(
                 "Unable to load current affairs."
             );
 
+
             return;
         }
 
-        articles =
+
+        /*
+         * Store the complete database result.
+         */
+
+        allArticles =
             Array.isArray(data)
                 ? data
                 : [];
+
+
+        /*
+         * =================================================
+         * CRITICAL FILTER
+         * =================================================
+         *
+         * From this point onward, `articles`
+         * contains ONLY relevant articles.
+         *
+         * Irrelevant articles are completely removed
+         * from the application's working dataset.
+         */
+
+        articles =
+            allArticles.filter(
+                article =>
+                    isArticleRelevant(
+                        article
+                    )
+            );
+
+
+        /*
+         * Sort only relevant articles.
+         */
 
         articles =
             sortNewestFirst(
                 articles
             );
 
+
         /*
-         * This represents the time at which
-         * the dashboard fetched the data.
+         * Debug information.
+         *
+         * Open browser console if you want to verify.
          */
+
+        console.log(
+            `PIB UPSC: ${allArticles.length} total articles`
+        );
+
+
+        console.log(
+            `PIB UPSC: ${articles.length} relevant articles`
+        );
+
+
+        console.log(
+            `PIB UPSC: ${allArticles.length - articles.length} irrelevant articles removed`
+        );
+
 
         lastFetchTime =
             new Date();
 
+
         /*
-         * Rebuild month slicer every time
-         * data is fetched.
+         * Rebuild month slicer
+         * using ONLY relevant articles.
          */
 
         buildMonthSlicer();
 
+
         /*
-         * Build flashcards.
+         * Flashcards
+         * from ONLY relevant articles.
          */
 
         buildFlashcards();
 
+
         /*
-         * Update dashboard.
+         * Dashboard.
          */
 
         renderDashboard();
 
+
         /*
-         * Render full Current Affairs
-         * using all filters.
+         * Current Affairs.
          */
 
         applyAllFilters();
+
 
         /*
          * Revision.
@@ -409,11 +604,13 @@ async function loadArticles() {
 
         renderRevision();
 
+
         /*
-         * GS section if one is selected.
+         * Last updated.
          */
 
         updateLastUpdated();
+
 
     } catch (error) {
 
@@ -421,13 +618,17 @@ async function loadArticles() {
             error
         );
 
+
         showLoadError(
             "Something went wrong while loading articles."
         );
 
+
     } finally {
 
-        setLoading(false);
+        setLoading(
+            false
+        );
     }
 }
 
@@ -443,15 +644,29 @@ function buildMonthSlicer() {
             "month-filter"
         );
 
+
     if (!select) {
         return;
     }
 
+
     const oldValue =
         selectedMonth;
 
+
     const monthMap =
         new Map();
+
+
+    /*
+     * IMPORTANT:
+     *
+     * `articles` already contains only relevant
+     * articles.
+     *
+     * Therefore irrelevant months/articles
+     * cannot appear in the slicer.
+     */
 
     articles.forEach(
         article => {
@@ -461,14 +676,19 @@ function buildMonthSlicer() {
                     article
                 );
 
+
             if (
                 key === "UNKNOWN"
             ) {
+
                 return;
             }
 
+
             if (
-                !monthMap.has(key)
+                !monthMap.has(
+                    key
+                )
             ) {
 
                 monthMap.set(
@@ -478,8 +698,10 @@ function buildMonthSlicer() {
                     )
                 );
             }
+
         }
     );
+
 
     const months =
         Array.from(
@@ -495,7 +717,9 @@ function buildMonthSlicer() {
                 )
         );
 
+
     select.innerHTML = `
+
         <option value="ALL">
             All Months
         </option>
@@ -503,22 +727,36 @@ function buildMonthSlicer() {
         ${months
             .map(
                 (
-                    [key, label]
+                    [
+                        key,
+                        label
+                    ]
                 ) => `
-                    <option value="${escapeHtml(key)}">
+
+                    <option
+                        value="${escapeHtml(key)}"
+                    >
                         ${escapeHtml(label)}
                     </option>
+
                 `
             )
             .join("")
         }
+
     `;
+
 
     const exists =
         months.some(
-            ([key]) =>
+            (
+                [
+                    key
+                ]
+            ) =>
                 key === oldValue
         );
+
 
     if (
         oldValue !== "ALL" &&
@@ -528,6 +766,7 @@ function buildMonthSlicer() {
         select.value =
             oldValue;
 
+
         selectedMonth =
             oldValue;
 
@@ -536,6 +775,7 @@ function buildMonthSlicer() {
         select.value =
             "ALL";
 
+
         selectedMonth =
             "ALL";
     }
@@ -543,19 +783,32 @@ function buildMonthSlicer() {
 
 
 /* =========================================================
-   APPLY ALL CURRENT AFFAIRS FILTERS
+   APPLY FILTERS
    ========================================================= */
 
 function applyAllFilters() {
+
+    /*
+     * Start from `articles`.
+     *
+     * `articles` = RELEVANT ONLY.
+     *
+     * Therefore there is absolutely no way
+     * for irrelevant articles to enter the
+     * Current Affairs screen.
+     */
 
     let filtered =
         [...articles];
 
 
-    /* MONTH */
+    /* =====================================================
+       MONTH
+       ===================================================== */
 
     if (
-        selectedMonth !== "ALL"
+        selectedMonth !==
+        "ALL"
     ) {
 
         filtered =
@@ -569,12 +822,15 @@ function applyAllFilters() {
     }
 
 
-    /* IMPORTANCE */
+    /* =====================================================
+       IMPORTANCE
+       ===================================================== */
 
     const importanceFilter =
         document.getElementById(
             "importance-filter"
         );
+
 
     const importance =
         importanceFilter
@@ -589,17 +845,33 @@ function applyAllFilters() {
                 importance
             );
 
+
         let max;
 
-        if (min === 9) {
+
+        if (
+            min === 9
+        ) {
+
             max = 10;
-        } else if (min === 7) {
+
+        } else if (
+            min === 7
+        ) {
+
             max = 8;
-        } else if (min === 4) {
+
+        } else if (
+            min === 4
+        ) {
+
             max = 6;
+
         } else {
+
             max = 3;
         }
+
 
         filtered =
             filtered.filter(
@@ -610,6 +882,7 @@ function applyAllFilters() {
                             article
                         );
 
+
                     return (
                         score >= min &&
                         score <= max
@@ -619,12 +892,15 @@ function applyAllFilters() {
     }
 
 
-    /* GS PAPER */
+    /* =====================================================
+       GS
+       ===================================================== */
 
     const gsFilter =
         document.getElementById(
             "gs-filter"
         );
+
 
     const gs =
         gsFilter
@@ -647,12 +923,24 @@ function applyAllFilters() {
     }
 
 
-    /* RELEVANCE */
+    /* =====================================================
+       RELEVANCE FILTER
+       ===================================================== */
+
+    /*
+     * Since the entire app already contains only
+     * relevant articles, the "Not Relevant" option
+     * should never produce any cards.
+     *
+     * If user selects "Not Relevant",
+     * show an empty state.
+     */
 
     const relevanceFilter =
         document.getElementById(
             "relevance-filter"
         );
+
 
     const relevance =
         relevanceFilter
@@ -660,23 +948,19 @@ function applyAllFilters() {
             : "";
 
 
-    if (relevance) {
+    if (
+        relevance === "false"
+    ) {
 
-        filtered =
-            filtered.filter(
-                article => {
-
-                    const relevant =
-                        isArticleRelevant(
-                            article
-                        );
-
-                    return String(
-                        relevant
-                    ) === relevance;
-                }
-            );
+        filtered = [];
     }
+
+
+    /*
+     * If "Relevant" is selected,
+     * nothing extra is needed because
+     * everything is already relevant.
+     */
 
 
     renderArticles(
@@ -694,12 +978,13 @@ function renderDashboard() {
     /*
      * IMPORTANT:
      *
-     * Dashboard statistics are based on
-     * the complete article database.
+     * All dashboard numbers are now based
+     * ONLY on relevant articles.
      */
 
     const total =
         articles.length;
+
 
     const processed =
         articles.filter(
@@ -707,13 +992,10 @@ function renderDashboard() {
                 article.processed
         ).length;
 
+
     const relevant =
-        articles.filter(
-            article =>
-                isArticleRelevant(
-                    article
-                )
-        ).length;
+        articles.length;
+
 
     const important =
         articles.filter(
@@ -729,31 +1011,30 @@ function renderDashboard() {
         relevant
     );
 
+
     setText(
         "total-count",
         total
     );
+
 
     setText(
         "processed-count",
         processed
     );
 
+
     setText(
         "relevant-count",
         relevant
     );
+
 
     setText(
         "important-count",
         important
     );
 
-
-    /*
-     * Render ONLY relevant articles
-     * on the dashboard.
-     */
 
     renderDashboardArticles();
 }
@@ -770,33 +1051,27 @@ function renderDashboardArticles() {
             "recent-articles"
         );
 
+
     if (!container) {
         return;
     }
 
 
     /*
-     * ONLY UPSC-RELEVANT ARTICLES
-     *
-     * This is the key fix for the
-     * unwanted 0/10 cards.
+     * `articles` contains ONLY relevant articles.
      */
 
     let filtered =
-        articles.filter(
-            article =>
-                isArticleRelevant(
-                    article
-                )
-        );
+        [...articles];
 
 
     /*
-     * APPLY SELECTED MONTH
+     * MONTH
      */
 
     if (
-        selectedMonth !== "ALL"
+        selectedMonth !==
+        "ALL"
     ) {
 
         filtered =
@@ -810,10 +1085,6 @@ function renderDashboardArticles() {
     }
 
 
-    /*
-     * SORT NEWEST FIRST
-     */
-
     filtered =
         sortNewestFirst(
             filtered
@@ -821,10 +1092,7 @@ function renderDashboardArticles() {
 
 
     /*
-     * UPDATE DASHBOARD MONTH HEADING
-     *
-     * Works with the month heading
-     * if it exists in the HTML.
+     * DYNAMIC MONTH HEADING
      */
 
     const heading =
@@ -836,7 +1104,8 @@ function renderDashboardArticles() {
     if (heading) {
 
         if (
-            selectedMonth === "ALL"
+            selectedMonth ===
+            "ALL"
         ) {
 
             heading.textContent =
@@ -848,15 +1117,9 @@ function renderDashboardArticles() {
                 getMonthLabelFromKey(
                     selectedMonth
                 );
-
         }
     }
 
-
-    /*
-     * UPDATE ANY MONTH LABEL
-     * USED BY THE DASHBOARD.
-     */
 
     const dashboardMonthLabel =
         document.querySelector(
@@ -864,27 +1127,21 @@ function renderDashboardArticles() {
         );
 
 
-    if (dashboardMonthLabel) {
+    if (
+        dashboardMonthLabel
+    ) {
 
-        if (
+        dashboardMonthLabel.textContent =
             selectedMonth === "ALL"
-        ) {
-
-            dashboardMonthLabel.textContent =
-                "All Months";
-
-        } else {
-
-            dashboardMonthLabel.textContent =
-                getMonthLabelFromKey(
+                ? "All Months"
+                : getMonthLabelFromKey(
                     selectedMonth
                 );
-        }
     }
 
 
     /*
-     * SHOW SIX RELEVANT ARTICLES.
+     * Show latest 6 relevant articles.
      */
 
     const recent =
@@ -894,28 +1151,25 @@ function renderDashboardArticles() {
         );
 
 
-    /*
-     * EMPTY STATE
-     */
-
     if (
         recent.length === 0
     ) {
 
         container.innerHTML = `
+
             <div class="empty-state">
+
                 No relevant articles found
                 for the selected month.
+
             </div>
+
         `;
+
 
         return;
     }
 
-
-    /*
-     * RENDER.
-     */
 
     container.innerHTML =
         recent
@@ -930,22 +1184,27 @@ function renderDashboardArticles() {
    ARTICLE CARD
    ========================================================= */
 
-function articleCard(article) {
+function articleCard(
+    article
+) {
 
     const importance =
         getImportance(
             article
         );
 
+
     const priority =
         getPriorityClass(
             article
         );
 
+
     const date =
         getDisplayDate(
             article
         );
+
 
     const dateText =
         formatDate(
@@ -983,24 +1242,35 @@ function articleCard(article) {
 
 
     return `
-        <article class="article-card">
+
+        <article
+            class="article-card"
+        >
 
             ${
                 dateText
                     ? `
-                        <div class="article-date">
+
+                        <div
+                            class="article-date"
+                        >
                             ${escapeHtml(
                                 dateText
                             )}
                         </div>
+
                     `
                     : ""
             }
 
 
-            <div class="article-meta">
+            <div
+                class="article-meta"
+            >
 
-                <span class="badge ${priority}">
+                <span
+                    class="badge ${priority}"
+                >
                     ${importance}/10
                 </span>
 
@@ -1012,11 +1282,15 @@ function articleCard(article) {
                     )
                     .map(
                         gs => `
-                            <span class="badge">
+
+                            <span
+                                class="badge"
+                            >
                                 ${escapeHtml(
                                     gs
                                 )}
                             </span>
+
                         `
                     )
                     .join("")
@@ -1035,11 +1309,13 @@ function articleCard(article) {
             ${
                 summary
                     ? `
+
                         <p>
                             ${escapeHtml(
                                 summary
                             )}
                         </p>
+
                     `
                     : ""
             }
@@ -1048,18 +1324,21 @@ function articleCard(article) {
             <button
                 class="article-action"
                 type="button"
-                onclick="openArticle(${JSON.stringify(article.id)})"
+                onclick="openArticle(${JSON.stringify(
+                    article.id
+                )})"
             >
                 Read analysis →
             </button>
 
         </article>
+
     `;
 }
 
 
 /* =========================================================
-   CURRENT AFFAIRS ARTICLE LIST
+   CURRENT AFFAIRS
    ========================================================= */
 
 function renderArticles(
@@ -1070,6 +1349,7 @@ function renderArticles(
         document.getElementById(
             "articles-list"
         );
+
 
     if (!container) {
         return;
@@ -1082,11 +1362,18 @@ function renderArticles(
     ) {
 
         container.innerHTML = `
-            <div class="empty-state">
-                No articles found for
-                the selected filters.
+
+            <div
+                class="empty-state"
+            >
+
+                No relevant articles found
+                for the selected filters.
+
             </div>
+
         `;
+
 
         return;
     }
@@ -1114,8 +1401,11 @@ function renderArticles(
                     article
                 );
 
+
             if (
-                !groups.has(key)
+                !groups.has(
+                    key
+                )
             ) {
 
                 groups.set(
@@ -1124,18 +1414,16 @@ function renderArticles(
                 );
             }
 
+
             groups
                 .get(key)
                 .push(
                     article
                 );
+
         }
     );
 
-
-    /*
-     * SORT MONTH GROUPS
-     */
 
     const sortedGroups =
         Array.from(
@@ -1152,10 +1440,6 @@ function renderArticles(
         );
 
 
-    /*
-     * RENDER MONTH GROUPS
-     */
-
     container.innerHTML =
         sortedGroups
             .map(
@@ -1166,18 +1450,26 @@ function renderArticles(
                     ]
                 ) => `
 
-                    <section class="month-section">
+                    <section
+                        class="month-section"
+                    >
 
-                        <div class="month-heading">
+                        <div
+                            class="month-heading"
+                        >
+
                             ${escapeHtml(
                                 getMonthLabelFromKey(
                                     key
                                 )
                             )}
+
                         </div>
 
 
-                        <div class="article-list">
+                        <div
+                            class="article-list"
+                        >
 
                             ${monthArticles
                                 .map(
@@ -1209,10 +1501,12 @@ function articleListItem(
             article
         );
 
+
     const priority =
         getPriorityClass(
             article
         );
+
 
     const date =
         getDisplayDate(
@@ -1243,28 +1537,39 @@ function articleListItem(
 
 
     return `
-        <article class="list-item">
+
+        <article
+            class="list-item"
+        >
 
             <div>
 
                 ${
                     date
                         ? `
-                            <div class="article-date">
+
+                            <div
+                                class="article-date"
+                            >
                                 ${escapeHtml(
                                     formatDate(
                                         date
                                     )
                                 )}
                             </div>
+
                         `
                         : ""
                 }
 
 
-                <div class="article-meta">
+                <div
+                    class="article-meta"
+                >
 
-                    <span class="badge ${priority}">
+                    <span
+                        class="badge ${priority}"
+                    >
                         ${importance}/10
                     </span>
 
@@ -1272,11 +1577,15 @@ function articleListItem(
                     ${gsPapers
                         .map(
                             gs => `
-                                <span class="badge">
+
+                                <span
+                                    class="badge"
+                                >
                                     ${escapeHtml(
                                         gs
                                     )}
                                 </span>
+
                             `
                         )
                         .join("")
@@ -1295,6 +1604,7 @@ function articleListItem(
                 ${
                     topics.length
                         ? `
+
                             <p>
                                 ${escapeHtml(
                                     topics.join(
@@ -1302,6 +1612,7 @@ function articleListItem(
                                     )
                                 )}
                             </p>
+
                         `
                         : ""
                 }
@@ -1312,21 +1623,26 @@ function articleListItem(
             <button
                 class="text-button"
                 type="button"
-                onclick="openArticle(${JSON.stringify(article.id)})"
+                onclick="openArticle(${JSON.stringify(
+                    article.id
+                )})"
             >
                 Read →
             </button>
 
         </article>
+
     `;
 }
 
 
 /* =========================================================
-   ARTICLE DETAIL MODAL
+   ARTICLE DETAIL
    ========================================================= */
 
-function openArticle(id) {
+function openArticle(
+    id
+) {
 
     const article =
         articles.find(
@@ -1337,6 +1653,12 @@ function openArticle(id) {
                 String(id)
         );
 
+
+    /*
+     * Since `articles` contains only relevant
+     * articles, an irrelevant article cannot
+     * be opened from the UI.
+     */
 
     if (!article) {
         return;
@@ -1360,21 +1682,29 @@ function openArticle(id) {
         ${
             date
                 ? `
-                    <div class="article-date">
+
+                    <div
+                        class="article-date"
+                    >
                         ${escapeHtml(
                             formatDate(
                                 date
                             )
                         )}
                     </div>
+
                 `
                 : ""
         }
 
 
-        <div class="article-meta">
+        <div
+            class="article-meta"
+        >
 
-            <span class="badge high">
+            <span
+                class="badge high"
+            >
                 Importance
                 ${importance}/10
             </span>
@@ -1387,11 +1717,15 @@ function openArticle(id) {
                 )
                     .map(
                         gs => `
-                            <span class="badge">
+
+                            <span
+                                class="badge"
+                            >
                                 ${escapeHtml(
                                     gs
                                 )}
                             </span>
+
                         `
                     )
                     .join("")
@@ -1400,7 +1734,9 @@ function openArticle(id) {
         </div>
 
 
-        <h1 class="detail-title">
+        <h1
+            class="detail-title"
+        >
             ${escapeHtml(
                 article.english_title ||
                 article.title ||
@@ -1412,11 +1748,15 @@ function openArticle(id) {
         ${
             article.english_summary
                 ? `
-                    <p class="detail-summary">
+
+                    <p
+                        class="detail-summary"
+                    >
                         ${escapeHtml(
                             article.english_summary
                         )}
                     </p>
+
                 `
                 : ""
         }
@@ -1478,13 +1818,16 @@ function openArticle(id) {
                 ) ||
                 values.length === 0
             ) {
+
                 return;
             }
 
 
             html += `
 
-                <div class="detail-section">
+                <div
+                    class="detail-section"
+                >
 
                     <h4>
                         ${escapeHtml(
@@ -1498,11 +1841,13 @@ function openArticle(id) {
                         ${values
                             .map(
                                 item => `
+
                                     <li>
                                         ${escapeHtml(
                                             item
                                         )}
                                     </li>
+
                                 `
                             )
                             .join("")
@@ -1517,11 +1862,15 @@ function openArticle(id) {
     );
 
 
-    if (article.link) {
+    if (
+        article.link
+    ) {
 
         html += `
 
-            <div class="detail-section">
+            <div
+                class="detail-section"
+            >
 
                 <a
                     href="${escapeHtml(
@@ -1544,6 +1893,7 @@ function openArticle(id) {
             "article-detail"
         );
 
+
     const modal =
         document.getElementById(
             "article-modal"
@@ -1551,6 +1901,7 @@ function openArticle(id) {
 
 
     if (detail) {
+
         detail.innerHTML =
             html;
     }
@@ -1574,6 +1925,13 @@ function buildFlashcards() {
     flashcards = [];
 
 
+    /*
+     * articles = relevant ONLY
+     *
+     * Therefore irrelevant articles
+     * cannot generate flashcards.
+     */
+
     articles.forEach(
         article => {
 
@@ -1582,6 +1940,7 @@ function buildFlashcards() {
                     article.flashcards
                 )
             ) {
+
                 return;
             }
 
@@ -1605,7 +1964,9 @@ function buildFlashcards() {
     );
 
 
-    currentFlashcard = 0;
+    currentFlashcard =
+        0;
+
 
     renderFlashcard();
 }
@@ -1630,20 +1991,26 @@ function renderFlashcard() {
 
         container.innerHTML = `
 
-            <div class="flashcard">
+            <div
+                class="flashcard"
+            >
 
                 <h3>
                     No flashcards yet
                 </h3>
 
-                <p class="answer">
-                    Process more PIB articles
-                    to generate revision cards.
+
+                <p
+                    class="answer"
+                >
+                    No relevant PIB articles
+                    currently have flashcards.
                 </p>
 
             </div>
 
         `;
+
 
         return;
     }
@@ -1657,9 +2024,13 @@ function renderFlashcard() {
 
     container.innerHTML = `
 
-        <div class="flashcard">
+        <div
+            class="flashcard"
+        >
 
-            <span class="type">
+            <span
+                class="type"
+            >
                 ${escapeHtml(
                     card.type ||
                     "Concept"
@@ -1687,7 +2058,9 @@ function renderFlashcard() {
             </div>
 
 
-            <div class="flashcard-actions">
+            <div
+                class="flashcard-actions"
+            >
 
                 <button
                     type="button"
@@ -1732,6 +2105,7 @@ function showAnswer() {
             "flash-answer"
         );
 
+
     if (answer) {
 
         answer.style.display =
@@ -1744,13 +2118,16 @@ function nextFlashcard() {
 
     currentFlashcard++;
 
+
     if (
         currentFlashcard >=
         flashcards.length
     ) {
 
-        currentFlashcard = 0;
+        currentFlashcard =
+            0;
     }
+
 
     renderFlashcard();
 }
@@ -1762,13 +2139,14 @@ function nextFlashcard() {
 
 function renderRevision() {
 
+    /*
+     * articles already contains only relevant.
+     */
+
     const important =
         articles
             .filter(
                 article =>
-                    isArticleRelevant(
-                        article
-                    ) &&
                     getImportance(
                         article
                     ) >= 7
@@ -1798,6 +2176,26 @@ function renderRevision() {
     }
 
 
+    if (
+        important.length === 0
+    ) {
+
+        container.innerHTML = `
+
+            <div
+                class="empty-state"
+            >
+                No high-priority relevant
+                articles available.
+            </div>
+
+        `;
+
+
+        return;
+    }
+
+
     container.innerHTML =
         important
             .map(
@@ -1814,6 +2212,10 @@ function renderRevision() {
 function renderGS(
     gs
 ) {
+
+    /*
+     * articles = relevant ONLY.
+     */
 
     const filtered =
         articles.filter(
@@ -1838,6 +2240,27 @@ function renderGS(
     }
 
 
+    if (
+        filtered.length === 0
+    ) {
+
+        container.innerHTML = `
+
+            <div
+                class="empty-state"
+            >
+                No relevant ${escapeHtml(
+                    gs
+                )} articles available.
+            </div>
+
+        `;
+
+
+        return;
+    }
+
+
     container.innerHTML = `
 
         <h3>
@@ -1848,7 +2271,9 @@ function renderGS(
         </h3>
 
 
-        <div class="article-list">
+        <div
+            class="article-list"
+        >
 
             ${sortNewestFirst(
                 filtered
@@ -1866,7 +2291,7 @@ function renderGS(
 
 
 /* =========================================================
-   FILTER EVENTS
+   MONTH FILTER EVENT
    ========================================================= */
 
 const monthFilter =
@@ -1875,7 +2300,9 @@ const monthFilter =
     );
 
 
-if (monthFilter) {
+if (
+    monthFilter
+) {
 
     monthFilter.addEventListener(
         "change",
@@ -1887,18 +2314,14 @@ if (monthFilter) {
 
 
             /*
-             * Update Current Affairs.
+             * Current Affairs.
              */
 
             applyAllFilters();
 
 
             /*
-             * Update Dashboard.
-             *
-             * This is what makes the dashboard
-             * dynamically respond to the
-             * month slicer.
+             * Dashboard.
              */
 
             renderDashboardArticles();
@@ -1907,6 +2330,10 @@ if (monthFilter) {
     );
 }
 
+
+/* =========================================================
+   OTHER FILTER EVENTS
+   ========================================================= */
 
 const importanceFilter =
     document.getElementById(
@@ -2068,7 +2495,9 @@ const search =
     );
 
 
-if (search) {
+if (
+    search
+) {
 
     search.addEventListener(
         "input",
@@ -2087,6 +2516,10 @@ if (search) {
                 return;
             }
 
+
+            /*
+             * Search ONLY the relevant dataset.
+             */
 
             const filtered =
                 articles.filter(
@@ -2179,7 +2612,9 @@ const closeModal =
     );
 
 
-if (closeModal) {
+if (
+    closeModal
+) {
 
     closeModal.addEventListener(
         "click",
@@ -2209,7 +2644,9 @@ const articleModal =
     );
 
 
-if (articleModal) {
+if (
+    articleModal
+) {
 
     articleModal.addEventListener(
         "click",
@@ -2241,7 +2678,9 @@ const refreshButton =
     );
 
 
-if (refreshButton) {
+if (
+    refreshButton
+) {
 
     refreshButton.addEventListener(
         "click",
@@ -2263,6 +2702,7 @@ function setText(
         document.getElementById(
             id
         );
+
 
     if (element) {
 
@@ -2286,12 +2726,12 @@ function showLoadError(
 
         container.innerHTML = `
 
-            <div class="empty-state">
-
+            <div
+                class="empty-state"
+            >
                 ${escapeHtml(
                     message
                 )}
-
             </div>
 
         `;

@@ -18,44 +18,53 @@ def main():
 
     args = parser.parse_args()
 
+
     print("")
     print("=" * 70)
-    print("PIB UPSC PIPELINE")
+    print("PIB UPSC CURRENT AFFAIRS PIPELINE")
     print("=" * 70)
 
+
     # =====================================================
-    # STEP 1 — COLLECT PIB
+    # COLLECT
     # =====================================================
 
     print("")
     print(
-        "STEP 1: Collecting PIB articles..."
+        "STEP 1 — COLLECTING PIB"
     )
+
 
     added = collect()
 
+
     print(
-        f"New articles collected: {added}"
+        f"New articles collected: "
+        f"{added}"
     )
 
+
     # =====================================================
-    # STEP 2 — AI
+    # AI
     # =====================================================
 
     print("")
     print(
-        "STEP 2: Starting Grok processing..."
+        "STEP 2 — PROCESSING WITH GROK"
     )
+
 
     processed = process_pending(
         args.batch
     )
 
+
     # =====================================================
-    # STEP 3 — DATABASE STATS
+    # STATS
     # =====================================================
 
     client = get_client()
+
 
     result = (
         client
@@ -66,14 +75,17 @@ def main():
         .execute()
     )
 
+
     rows = (
         result.data
         or []
     )
 
+
     total = len(
         rows
     )
+
 
     processed_total = sum(
         1
@@ -83,6 +95,7 @@ def main():
         )
     )
 
+
     relevant_total = sum(
         1
         for row in rows
@@ -90,6 +103,7 @@ def main():
             "relevant"
         )
     )
+
 
     high_priority_total = sum(
         1
@@ -109,6 +123,13 @@ def main():
         )
     )
 
+
+    pending_total = (
+        total -
+        processed_total
+    )
+
+
     output = {
 
         "new_articles":
@@ -123,12 +144,16 @@ def main():
         "database_processed":
             processed_total,
 
+        "database_pending":
+            pending_total,
+
         "database_relevant":
             relevant_total,
 
         "database_high_priority":
             high_priority_total,
     }
+
 
     print("")
     print(
@@ -139,10 +164,9 @@ def main():
         )
     )
 
+
     print("")
-    print(
-        "=" * 70
-    )
+    print("=" * 70)
 
 
 if __name__ == "__main__":

@@ -35,7 +35,7 @@ XAI_API_KEY = os.getenv(
 
 XAI_MODEL = os.getenv(
     "XAI_MODEL",
-    "grok-4.3"
+    "grok-4.6"
 )
 
 
@@ -50,7 +50,7 @@ PIB_FEEDS = [
             "https://www.pib.gov.in/"
             "RssMain.aspx?ModId=6&Lang=1&Regid=3"
         ),
-    },
+    }
 ]
 
 
@@ -60,7 +60,16 @@ USER_AGENT = (
 
 
 # =========================================================
-# ARTICLES TO IGNORE
+# ARTICLES
+# =========================================================
+
+COLLECT_BATCH_SIZE = 50
+
+AI_BATCH_SIZE = 50
+
+
+# =========================================================
+# TITLES TO IGNORE
 # =========================================================
 
 IGNORE_TITLE_PATTERNS = [
@@ -71,12 +80,3 @@ IGNORE_TITLE_PATTERNS = [
     "condoles",
     "birthday greetings",
 ]
-
-
-# =========================================================
-# PROCESSING
-# =========================================================
-
-COLLECT_BATCH_SIZE = 50
-
-AI_BATCH_SIZE = 50

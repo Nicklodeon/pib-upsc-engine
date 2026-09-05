@@ -34,7 +34,7 @@ PIB_BASE = (
 
 
 # =========================================================
-# TEXT
+# CLEAN TEXT
 # =========================================================
 
 def clean_text(html):
@@ -74,8 +74,7 @@ def get_response(url):
     headers = {
         "User-Agent": (
             USER_AGENT
-            or
-            "Mozilla/5.0"
+            or "Mozilla/5.0"
         ),
         "Accept": (
             "text/html,"
@@ -112,10 +111,7 @@ def normalize_datetime(value):
     if not value:
         return None
 
-    # -----------------------------------------------------
     # ISO
-    # -----------------------------------------------------
-
     try:
 
         parsed = datetime.fromisoformat(
@@ -136,10 +132,7 @@ def normalize_datetime(value):
     except Exception:
         pass
 
-    # -----------------------------------------------------
     # RSS / RFC822
-    # -----------------------------------------------------
-
     try:
 
         parsed = parsedate_to_datetime(
@@ -157,17 +150,7 @@ def normalize_datetime(value):
     except Exception:
         pass
 
-    # -----------------------------------------------------
     # PIB
-    # -----------------------------------------------------
-
-    patterns = [
-        "%d %b %Y %I:%M%p",
-        "%d %b %Y %I:%M %p",
-        "%d %B %Y %I:%M%p",
-        "%d %B %Y %I:%M %p",
-    ]
-
     cleaned = re.sub(
         r"\s+by\s+PIB.*$",
         "",
@@ -175,13 +158,20 @@ def normalize_datetime(value):
         flags=re.IGNORECASE,
     ).strip()
 
-    for pattern in patterns:
+    formats = [
+        "%d %b %Y %I:%M%p",
+        "%d %b %Y %I:%M %p",
+        "%d %B %Y %I:%M%p",
+        "%d %B %Y %I:%M %p",
+    ]
+
+    for fmt in formats:
 
         try:
 
             parsed = datetime.strptime(
                 cleaned,
-                pattern,
+                fmt,
             )
 
             ist = timezone(
@@ -204,7 +194,7 @@ def normalize_datetime(value):
 
 
 # =========================================================
-# PIB PAGE DATE
+# PIB POSTED DATE
 # =========================================================
 
 def extract_pib_posted_date(html):
@@ -303,38 +293,35 @@ def extract_pib_metadata(html):
 
     if not ministry:
 
-        pieces = [
-            x.strip()
-            for x in text.split(".")
-            if x.strip()
-        ]
+        for sentence in text.split(".")[:30]:
 
-        for piece in pieces[:20]:
+            sentence = sentence.strip()
 
             if (
-                piece.startswith(
+                sentence.startswith(
                     "Ministry of"
                 )
                 or
-                piece.startswith(
+                sentence.startswith(
                     "Department of"
                 )
             ):
 
-                ministry = piece[:300]
+                ministry = sentence[:300]
 
                 break
 
     return {
         "published_at":
             published_at,
+
         "ministry":
             ministry,
     }
 
 
 # =========================================================
-# FETCH ARTICLE
+# ARTICLE
 # =========================================================
 
 def fetch_article(url):
@@ -349,13 +336,11 @@ def fetch_article(url):
         )
     )
 
-    raw_text = clean_text(
-        response.text
-    )
-
     return {
         "raw_text":
-            raw_text,
+            clean_text(
+                response.text
+            ),
 
         "published_at":
             metadata[
@@ -370,7 +355,7 @@ def fetch_article(url):
 
 
 # =========================================================
-# RSS
+# RSS PARSER
 # =========================================================
 
 def parse_rss(
@@ -387,7 +372,7 @@ def parse_rss(
     except ET.ParseError as error:
 
         print(
-            "RSS parsing failed:",
+            "RSS XML parsing failed:",
             error,
         )
 
@@ -547,10 +532,6 @@ def scrape_all_releases():
         "AllRelease.aspx?lang=1&reg=3"
     )
 
-    print(
-        "Using PIB All Releases fallback."
-    )
-
     response = get_response(
         url
     )
@@ -643,16 +624,16 @@ def save_articles(
 
     added = 0
 
-    articles = articles[
+    selected = articles[
         :COLLECT_BATCH_SIZE
     ]
 
     print(
         f"Articles selected: "
-        f"{len(articles)}"
+        f"{len(selected)}"
     )
 
-    for article in articles:
+    for article in selected:
 
         print("")
         print(
@@ -688,17 +669,14 @@ def save_articles(
                 or raw_text
             )
 
-            # Always prefer actual PIB date
-            page_date = (
-                result.get(
-                    "published_at"
-                )
-            )
-
-            if page_date:
+            if result.get(
+                "published_at"
+            ):
 
                 published_at = (
-                    page_date
+                    result[
+                        "published_at"
+                    ]
                 )
 
             ministry = (
@@ -802,7 +780,8 @@ def collect():
         )
 
         print(
-            f"RSS: {feed['name']}"
+            f"PIB FEED: "
+            f"{feed['name']}"
         )
 
         try:
@@ -827,19 +806,15 @@ def collect():
             else:
 
                 print(
-                    "RSS returned no articles."
+                    "No RSS articles found."
                 )
 
         except Exception as error:
 
             print(
-                "RSS failed:",
+                "RSS error:",
                 error,
             )
-
-    # -----------------------------------------------------
-    # FALLBACK ONLY IF RSS FAILED COMPLETELY
-    # -----------------------------------------------------
 
     if total_added == 0:
 
@@ -858,7 +833,7 @@ def collect():
         except Exception as error:
 
             print(
-                "Fallback failed:",
+                "Fallback error:",
                 error,
             )
 

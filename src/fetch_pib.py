@@ -1,67 +1,90 @@
 import re
 import time
-from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
+
+from datetime import (
+    datetime,
+    timezone,
+    timedelta,
+)
+
+from email.utils import (
+    parsedate_to_datetime,
+)
+
 from urllib.parse import urljoin
+
 from xml.etree import ElementTree as ET
 
 import requests
+
 from bs4 import BeautifulSoup
 
-from .config import PIB_FEEDS, USER_AGENT
+from .config import (
+    PIB_FEEDS,
+    USER_AGENT,
+    COLLECT_BATCH_SIZE,
+)
+
 from .db import insert_article
 
 
-PIB_BASE = "https://www.pib.gov.in"
-
-# Number of articles to inspect per collection run.
-# Increase/decrease later without changing the rest of the collector.
-MAX_ARTICLES_PER_RUN = 50
+PIB_BASE = (
+    "https://www.pib.gov.in"
+)
 
 
-# ---------------------------------------------------------
-# TEXT CLEANING
-# ---------------------------------------------------------
+# =========================================================
+# TEXT
+# =========================================================
 
 def clean_text(html):
+
     soup = BeautifulSoup(
         html or "",
-        "html.parser"
+        "html.parser",
     )
 
     for tag in soup(
-        ["script", "style", "noscript"]
+        [
+            "script",
+            "style",
+            "noscript",
+        ]
     ):
         tag.decompose()
 
     text = soup.get_text(
         " ",
-        strip=True
+        strip=True,
     )
 
     return re.sub(
         r"\s+",
         " ",
-        text
+        text,
     ).strip()
 
 
-# ---------------------------------------------------------
+# =========================================================
 # HTTP
-# ---------------------------------------------------------
+# =========================================================
 
 def get_response(url):
 
     headers = {
-        "User-Agent": USER_AGENT or (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 Chrome/151 Safari/537.36"
+        "User-Agent": (
+            USER_AGENT
+            or
+            "Mozilla/5.0"
         ),
         "Accept": (
-            "text/html,application/xhtml+xml,"
-            "application/xml;q=0.9,*/*;q=0.8"
+            "text/html,"
+            "application/xhtml+xml,"
+            "application/xml,"
+            "q=0.9,*/*;q=0.8"
         ),
-        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Language":
+            "en-US,en;q=0.9",
     }
 
     response = requests.get(
@@ -75,15 +98,11 @@ def get_response(url):
     return response
 
 
-# ---------------------------------------------------------
-# DATE HELPERS
-# ---------------------------------------------------------
+# =========================================================
+# DATE NORMALISATION
+# =========================================================
 
 def normalize_datetime(value):
-    """
-    Convert different PIB/RSS date formats into an ISO
-    timestamp suitable for Supabase timestamptz.
-    """
 
     if not value:
         return None
@@ -94,18 +113,20 @@ def normalize_datetime(value):
         return None
 
     # -----------------------------------------------------
-    # Already ISO formatted
+    # ISO
     # -----------------------------------------------------
 
     try:
+
         parsed = datetime.fromisoformat(
             value.replace(
                 "Z",
-                "+00:00"
+                "+00:00",
             )
         )
 
         if parsed.tzinfo is None:
+
             parsed = parsed.replace(
                 tzinfo=timezone.utc
             )
@@ -116,18 +137,17 @@ def normalize_datetime(value):
         pass
 
     # -----------------------------------------------------
-    # RSS / RFC822 date
-    #
-    # Example:
-    # Wed, 19 Aug 2026 10:30:00 +0530
+    # RSS / RFC822
     # -----------------------------------------------------
 
     try:
+
         parsed = parsedate_to_datetime(
             value
         )
 
         if parsed.tzinfo is None:
+
             parsed = parsed.replace(
                 tzinfo=timezone.utc
             )
@@ -138,12 +158,7 @@ def normalize_datetime(value):
         pass
 
     # -----------------------------------------------------
-    # PIB formats
-    #
-    # Examples:
-    # 18 AUG 2026 8:04PM
-    # 18 AUG 2026 08:04 PM
-    # 18 August 2026 8:04PM
+    # PIB
     # -----------------------------------------------------
 
     patterns = [
@@ -153,12 +168,11 @@ def normalize_datetime(value):
         "%d %B %Y %I:%M %p",
     ]
 
-    # Remove common trailing PIB text.
     cleaned = re.sub(
         r"\s+by\s+PIB.*$",
         "",
         value,
-        flags=re.IGNORECASE
+        flags=re.IGNORECASE,
     ).strip()
 
     for pattern in patterns:
@@ -167,17 +181,13 @@ def normalize_datetime(value):
 
             parsed = datetime.strptime(
                 cleaned,
-                pattern
+                pattern,
             )
-
-            # PIB operates in India.
-            # Store the timestamp with IST offset.
-            from datetime import timedelta
 
             ist = timezone(
                 timedelta(
                     hours=5,
-                    minutes=30
+                    minutes=30,
                 )
             )
 
@@ -193,38 +203,30 @@ def normalize_datetime(value):
     return None
 
 
+# =========================================================
+# PIB PAGE DATE
+# =========================================================
+
 def extract_pib_posted_date(html):
-    """
-    Extract PIB's actual publication timestamp from
-    the article page.
-
-    PIB commonly contains:
-
-    Posted On: 18 AUG 2026 8:04PM by PIB Delhi
-    """
 
     if not html:
         return None
 
-    # Work with visible page text.
-    text = clean_text(html)
+    text = clean_text(
+        html
+    )
 
     patterns = [
 
-        # Standard PIB format.
         r"Posted\s*On\s*:\s*"
-        r"(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}"
-        r"\s+\d{1,2}:\d{2}\s*(?:AM|PM))",
+        r"(\d{1,2}\s+[A-Za-z]{3,9}"
+        r"\s+\d{4}\s+\d{1,2}:\d{2}"
+        r"\s*(?:AM|PM))",
 
-        # Slightly different spacing.
         r"Posted\s+On\s*:\s*"
-        r"(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}"
-        r"\s+\d{1,2}:\d{2}\s*(?:AM|PM))",
-
-        # Case-insensitive variant.
-        r"posted\s*on\s*:\s*"
-        r"(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}"
-        r"\s+\d{1,2}:\d{2}\s*(?:am|pm))",
+        r"(\d{1,2}\s+[A-Za-z]{3,9}"
+        r"\s+\d{4}\s+\d{1,2}:\d{2}"
+        r"\s*(?:AM|PM))",
     ]
 
     for pattern in patterns:
@@ -232,37 +234,26 @@ def extract_pib_posted_date(html):
         match = re.search(
             pattern,
             text,
-            flags=re.IGNORECASE
+            flags=re.IGNORECASE,
         )
 
         if match:
 
-            raw_date = match.group(
-                1
-            ).strip()
-
-            normalized = normalize_datetime(
-                raw_date
+            return normalize_datetime(
+                match.group(1)
             )
-
-            if normalized:
-                return normalized
 
     return None
 
 
-def extract_pib_metadata(html):
-    """
-    Extract useful metadata from a PIB article page.
+# =========================================================
+# PIB METADATA
+# =========================================================
 
-    Returns:
-        {
-            "published_at": ...,
-            "ministry": ...,
-        }
-    """
+def extract_pib_metadata(html):
 
     if not html:
+
         return {
             "published_at": None,
             "ministry": "",
@@ -270,31 +261,29 @@ def extract_pib_metadata(html):
 
     soup = BeautifulSoup(
         html,
-        "html.parser"
+        "html.parser",
     )
 
     text = clean_text(
         html
     )
 
-    published_at = extract_pib_posted_date(
-        html
+    published_at = (
+        extract_pib_posted_date(
+            html
+        )
     )
 
     ministry = ""
 
-    # -----------------------------------------------------
-    # Try common PIB page structure.
-    # -----------------------------------------------------
-
-    possible_selectors = [
+    selectors = [
         ".MinistryName",
         ".ministry",
         ".ministery",
         "#ctl00_ContentPlaceHolder1_lblMinistry",
     ]
 
-    for selector in possible_selectors:
+    for selector in selectors:
 
         element = soup.select_one(
             selector
@@ -305,55 +294,48 @@ def extract_pib_metadata(html):
             ministry = clean_text(
                 element.get_text(
                     " ",
-                    strip=True
+                    strip=True,
                 )
             )
 
             if ministry:
                 break
 
-    # -----------------------------------------------------
-    # Fallback:
-    #
-    # PIB pages normally begin with something such as:
-    #
-    # Ministry of ...
-    #
-    # before the title.
-    # -----------------------------------------------------
-
     if not ministry:
 
-        lines = [
-            line.strip()
-            for line in text.split(".")
-            if line.strip()
+        pieces = [
+            x.strip()
+            for x in text.split(".")
+            if x.strip()
         ]
 
-        for line in lines[:10]:
+        for piece in pieces[:20]:
 
             if (
-                line.startswith(
+                piece.startswith(
                     "Ministry of"
                 )
-                or line.startswith(
+                or
+                piece.startswith(
                     "Department of"
                 )
             ):
 
-                ministry = line[:300]
+                ministry = piece[:300]
 
                 break
 
     return {
-        "published_at": published_at,
-        "ministry": ministry,
+        "published_at":
+            published_at,
+        "ministry":
+            ministry,
     }
 
 
-# ---------------------------------------------------------
-# ARTICLE FETCH
-# ---------------------------------------------------------
+# =========================================================
+# FETCH ARTICLE
+# =========================================================
 
 def fetch_article(url):
 
@@ -361,8 +343,10 @@ def fetch_article(url):
         url
     )
 
-    metadata = extract_pib_metadata(
-        response.text
+    metadata = (
+        extract_pib_metadata(
+            response.text
+        )
     )
 
     raw_text = clean_text(
@@ -370,29 +354,32 @@ def fetch_article(url):
     )
 
     return {
-        "raw_text": raw_text,
-        "published_at": metadata[
-            "published_at"
-        ],
-        "ministry": metadata[
-            "ministry"
-        ],
+        "raw_text":
+            raw_text,
+
+        "published_at":
+            metadata[
+                "published_at"
+            ],
+
+        "ministry":
+            metadata[
+                "ministry"
+            ],
     }
 
 
-# ---------------------------------------------------------
+# =========================================================
 # RSS
-# ---------------------------------------------------------
+# =========================================================
 
 def parse_rss(
     response,
-    source_name
+    source_name,
 ):
 
     try:
 
-        # Use bytes so XML encoding declarations
-        # are handled correctly.
         root = ET.fromstring(
             response.content
         )
@@ -400,14 +387,8 @@ def parse_rss(
     except ET.ParseError as error:
 
         print(
-            "RSS XML parsing failed:"
-        )
-
-        print(error)
-
-        print(
-            "Falling back to PIB "
-            "All Releases page."
+            "RSS parsing failed:",
+            error,
         )
 
         return []
@@ -438,6 +419,7 @@ def parse_rss(
             )
 
             if element is not None:
+
                 return (
                     element.text
                     or ""
@@ -448,6 +430,7 @@ def parse_rss(
             )
 
             if element is not None:
+
                 return (
                     element.text
                     or ""
@@ -461,7 +444,8 @@ def parse_rss(
 
         guid = (
             text("guid").strip()
-            or text("id").strip()
+            or
+            text("id").strip()
         )
 
         link = text(
@@ -470,57 +454,74 @@ def parse_rss(
 
         if not link:
 
-            link_element = item.find(
-                ".//{*}link"
+            link_element = (
+                item.find(
+                    ".//{*}link"
+                )
             )
 
-            if link_element is not None:
+            if link_element:
 
                 link = (
                     link_element
                     .attrib
                     .get(
                         "href",
-                        ""
+                        "",
                     )
                 )
 
         published = (
-            text("pubDate").strip()
-            or text("published").strip()
-            or text("updated").strip()
+            text(
+                "pubDate"
+            ).strip()
+            or
+            text(
+                "published"
+            ).strip()
+            or
+            text(
+                "updated"
+            ).strip()
         )
 
         description = (
-            text("description")
-            or text("summary")
-            or text("content")
+            text(
+                "description"
+            )
+            or
+            text(
+                "summary"
+            )
+            or
+            text(
+                "content"
+            )
         )
 
         if not title or not link:
             continue
 
-        normalized_date = (
-            normalize_datetime(
-                published
-            )
-        )
-
         articles.append(
             {
-                "guid": guid or link,
+                "guid":
+                    guid or link,
 
-                "title": clean_text(
-                    title
-                ),
+                "title":
+                    clean_text(
+                        title
+                    ),
 
-                "link": urljoin(
-                    PIB_BASE,
-                    link
-                ),
+                "link":
+                    urljoin(
+                        PIB_BASE,
+                        link,
+                    ),
 
                 "published_at":
-                    normalized_date,
+                    normalize_datetime(
+                        published
+                    ),
 
                 "source":
                     source_name,
@@ -535,9 +536,9 @@ def parse_rss(
     return articles
 
 
-# ---------------------------------------------------------
-# PIB ALL RELEASES FALLBACK
-# ---------------------------------------------------------
+# =========================================================
+# FALLBACK
+# =========================================================
 
 def scrape_all_releases():
 
@@ -546,33 +547,17 @@ def scrape_all_releases():
         "AllRelease.aspx?lang=1&reg=3"
     )
 
-    print("")
     print(
-        "=" * 70
-    )
-
-    print(
-        "FALLBACK: PIB ALL RELEASES"
-    )
-
-    print(url)
-
-    print(
-        "=" * 70
+        "Using PIB All Releases fallback."
     )
 
     response = get_response(
         url
     )
 
-    print(
-        f"All Releases HTTP status: "
-        f"{response.status_code}"
-    )
-
     soup = BeautifulSoup(
         response.text,
-        "html.parser"
+        "html.parser",
     )
 
     articles = []
@@ -585,12 +570,12 @@ def scrape_all_releases():
 
         href = anchor.get(
             "href",
-            ""
+            "",
         )
 
         title = anchor.get_text(
             " ",
-            strip=True
+            strip=True,
         )
 
         if not href or not title:
@@ -598,9 +583,9 @@ def scrape_all_releases():
 
         href_lower = href.lower()
 
-        valid_url = any(
-            x in href_lower
-            for x in [
+        valid = any(
+            pattern in href_lower
+            for pattern in [
                 "pressreleasepage.aspx",
                 "pressrelesedetail.aspx",
                 "pressreleaseiframepage.aspx",
@@ -608,12 +593,12 @@ def scrape_all_releases():
             ]
         )
 
-        if not valid_url:
+        if not valid:
             continue
 
         link = urljoin(
             PIB_BASE,
-            href
+            href,
         )
 
         if link in seen:
@@ -623,16 +608,17 @@ def scrape_all_releases():
 
         articles.append(
             {
-                "guid": link,
+                "guid":
+                    link,
 
-                "title": clean_text(
-                    title
-                ),
+                "title":
+                    clean_text(
+                        title
+                    ),
 
-                "link": link,
+                "link":
+                    link,
 
-                # We will retrieve the actual
-                # date from the article page.
                 "published_at":
                     None,
 
@@ -644,17 +630,12 @@ def scrape_all_releases():
             }
         )
 
-    print(
-        f"All Releases links discovered: "
-        f"{len(articles)}"
-    )
-
     return articles
 
 
-# ---------------------------------------------------------
-# PROCESS ARTICLES
-# ---------------------------------------------------------
+# =========================================================
+# SAVE
+# =========================================================
 
 def save_articles(
     articles
@@ -662,23 +643,12 @@ def save_articles(
 
     added = 0
 
-    # -----------------------------------------------------
-    # IMPORTANT
-    #
-    # Previously this was:
-    #
-    # articles = articles[:10]
-    #
-    # That meant only 10 articles could ever be
-    # considered from each feed.
-    # -----------------------------------------------------
-
     articles = articles[
-        :MAX_ARTICLES_PER_RUN
+        :COLLECT_BATCH_SIZE
     ]
 
     print(
-        f"Articles selected for this run: "
+        f"Articles selected: "
         f"{len(articles)}"
     )
 
@@ -686,17 +656,21 @@ def save_articles(
 
         print("")
         print(
-            f"Fetching article: "
-            f"{article['title']}"
+            "Fetching:",
+            article["title"],
         )
 
-        raw_text = article.get(
-            "summary",
-            ""
+        raw_text = (
+            article.get(
+                "summary"
+            )
+            or ""
         )
 
-        published_at = article.get(
-            "published_at"
+        published_at = (
+            article.get(
+                "published_at"
+            )
         )
 
         ministry = ""
@@ -714,63 +688,39 @@ def save_articles(
                 or raw_text
             )
 
-            # -------------------------------------------------
-            # CRITICAL FIX:
-            #
-            # If RSS did not give us a date, use the
-            # actual PIB article page.
-            # -------------------------------------------------
+            # Always prefer actual PIB date
+            page_date = (
+                result.get(
+                    "published_at"
+                )
+            )
 
-            if not published_at:
+            if page_date:
 
                 published_at = (
-                    result.get(
-                        "published_at"
-                    )
+                    page_date
                 )
 
             ministry = (
                 result.get(
-                    "ministry",
-                    ""
+                    "ministry"
                 )
                 or ""
             )
 
             print(
-                f"Article fetched: "
-                f"{len(raw_text)} characters"
+                "Publication date:",
+                published_at,
             )
-
-            if published_at:
-
-                print(
-                    f"Publication date: "
-                    f"{published_at}"
-                )
-
-            else:
-
-                print(
-                    "WARNING: "
-                    "Publication date could not "
-                    "be extracted."
-                )
 
         except Exception as error:
 
             print(
-                f"Article fetch failed: "
-                f"{error}"
+                "Article fetch failed:",
+                error,
             )
 
             if not raw_text:
-
-                print(
-                    "Skipping article because "
-                    "no article text was obtained."
-                )
-
                 continue
 
         item = {
@@ -785,7 +735,7 @@ def save_articles(
                 article["link"],
 
             "published_at":
-                published_at or None,
+                published_at,
 
             "source":
                 article["source"],
@@ -813,38 +763,38 @@ def save_articles(
                 added += 1
 
                 print(
-                    "✓ INSERTED"
+                    "✓ NEW ARTICLE"
                 )
 
             else:
 
                 print(
-                    "Already exists"
+                    "✓ EXISTING ARTICLE UPDATED"
                 )
 
         except Exception as error:
 
             print(
-                f"✗ Supabase error: "
-                f"{error}"
+                "Supabase error:",
+                error,
             )
 
         time.sleep(
-            0.2
+            0.15
         )
 
     return added
 
 
-# ---------------------------------------------------------
-# MAIN COLLECTOR
-# ---------------------------------------------------------
+# =========================================================
+# COLLECT
+# =========================================================
 
 def collect():
 
     total_added = 0
 
-    for feed_config in PIB_FEEDS:
+    for feed in PIB_FEEDS:
 
         print("")
         print(
@@ -852,49 +802,21 @@ def collect():
         )
 
         print(
-            f"TRYING RSS: "
-            f"{feed_config['name']}"
-        )
-
-        print(
-            feed_config["url"]
-        )
-
-        print(
-            "=" * 70
+            f"RSS: {feed['name']}"
         )
 
         try:
 
             response = get_response(
-                feed_config["url"]
-            )
-
-            print(
-                f"HTTP status: "
-                f"{response.status_code}"
-            )
-
-            print(
-                f"Content type: "
-                f"{response.headers.get('content-type')}"
-            )
-
-            print(
-                f"Response size: "
-                f"{len(response.content)} bytes"
+                feed["url"]
             )
 
             articles = parse_rss(
                 response,
-                feed_config["name"]
+                feed["name"],
             )
 
             if articles:
-
-                print(
-                    "RSS worked successfully."
-                )
 
                 total_added += (
                     save_articles(
@@ -902,49 +824,42 @@ def collect():
                     )
                 )
 
-                continue
+            else:
 
-            print(
-                "RSS returned no usable "
-                "articles."
-            )
+                print(
+                    "RSS returned no articles."
+                )
 
         except Exception as error:
 
             print(
-                f"RSS request failed: "
-                f"{error}"
+                "RSS failed:",
+                error,
             )
 
     # -----------------------------------------------------
-    # FALLBACK
+    # FALLBACK ONLY IF RSS FAILED COMPLETELY
     # -----------------------------------------------------
 
     if total_added == 0:
 
-        print("")
-        print(
-            "RSS unavailable. "
-            "Using All Releases fallback."
-        )
-
         try:
 
-            articles = (
+            fallback = (
                 scrape_all_releases()
             )
 
             total_added += (
                 save_articles(
-                    articles
+                    fallback
                 )
             )
 
         except Exception as error:
 
             print(
-                f"All Releases fallback failed: "
-                f"{error}"
+                "Fallback failed:",
+                error,
             )
 
     print("")
@@ -963,10 +878,6 @@ def collect():
 
     return total_added
 
-
-# ---------------------------------------------------------
-# DIRECT EXECUTION
-# ---------------------------------------------------------
 
 if __name__ == "__main__":
 

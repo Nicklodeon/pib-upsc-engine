@@ -11,24 +11,19 @@ from .config import (
 from .db import get_client
 
 
-# =========================================================
-# SYSTEM PROMPT
-# =========================================================
-
 SYSTEM_PROMPT = """
 You are an expert UPSC Civil Services current-affairs editor.
 
 Analyze PIB releases specifically for UPSC preparation.
 
-Your job is NOT to blindly summarize every government
-announcement.
+Do not blindly summarize every announcement.
 
-Determine whether the article contains meaningful
-UPSC-relevant substance.
+Determine whether the article contains meaningful UPSC
+relevant substance.
 
-Consider:
+Relevant areas include:
 
-- Constitutional issues
+- Constitution
 - Governance
 - Government policy
 - Welfare
@@ -45,38 +40,27 @@ Consider:
 - Major national programmes
 - Important developments with long-term relevance
 
-Routine ceremonial announcements should generally be
-marked irrelevant unless they contain substantive
-policy, institutional, economic, scientific, social,
-environmental, security or international significance.
+Routine ceremonial announcements should normally be
+irrelevant unless they contain substantive information.
 
-Be conservative.
+Be conservative and factual.
 
-Do not invent facts.
+NEVER invent information.
 
 Only use information contained in the article.
 
 Importance:
 
+0 = irrelevant
 1-3 = low relevance
 4-6 = useful background
-7-8 = important UPSC material
-9-10 = very important / must know
-
-A genuinely irrelevant PIB announcement MUST have:
-
-relevant = false
-importance = 0
-
-A relevant article should normally have importance >= 4.
-
-Return English content even if the original PIB article
-is in Hindi.
+7-8 = important
+9-10 = must know
 """
 
 
 # =========================================================
-# CLIENT
+# GROK CLIENT
 # =========================================================
 
 def get_client_ai():
@@ -94,7 +78,7 @@ def get_client_ai():
 
 
 # =========================================================
-# JSON EXTRACTION
+# JSON
 # =========================================================
 
 def extract_json(text):
@@ -102,7 +86,7 @@ def extract_json(text):
     if not text:
 
         raise ValueError(
-            "Empty AI response."
+            "Empty Grok response."
         )
 
     text = text.strip()
@@ -140,7 +124,7 @@ def extract_json(text):
     ):
 
         raise ValueError(
-            "AI did not return valid JSON."
+            "Grok did not return valid JSON."
         )
 
     return json.loads(
@@ -151,7 +135,7 @@ def extract_json(text):
 
 
 # =========================================================
-# AI ANALYSIS
+# ANALYSE
 # =========================================================
 
 def analyse_article(row):
@@ -166,7 +150,7 @@ def analyse_article(row):
     )[:12000]
 
     prompt = f"""
-Analyze this PIB article for UPSC Civil Services preparation.
+Analyze this PIB article for UPSC preparation.
 
 ORIGINAL TITLE:
 {row.get("title", "")}
@@ -174,104 +158,62 @@ ORIGINAL TITLE:
 MINISTRY:
 {row.get("ministry", "")}
 
-PUBLICATION DATE:
+DATE:
 {row.get("published_at", "")}
 
 ARTICLE:
 {article_text}
 
-Return ONLY JSON.
+Return ONLY valid JSON.
 
-Use exactly this structure:
+Use exactly:
 
 {{
     "relevant": true,
     "importance": 8,
-
     "english_title": "",
-
     "english_summary": "",
-
     "gs_papers": [],
-
     "topics": [],
-
     "prelims_facts": [],
-
     "mains_notes": [],
-
     "data_points": [],
-
     "schemes": [],
-
     "institutions": [],
-
     "implications": [],
-
     "possible_questions": [],
-
     "keywords": [],
-
     "flashcards": []
 }}
 
 Rules:
 
-1. relevant must be true or false.
-
-2. importance must be an integer 0-10.
-
-3. If the article is not substantively relevant to UPSC:
-   - relevant = false
-   - importance = 0
-   - all analytical arrays should be empty.
-
-4. Relevant articles should normally have importance >= 4.
-
-5. gs_papers may contain only:
-   GS1
-   GS2
-   GS3
-   GS4
-   Prelims
-
-6. Translate the title accurately into English.
-
-7. Write the summary in English.
-
-8. Summary must be approximately 80-120 words.
-
-9. Do NOT invent facts.
-
-10. Maximum:
-   prelims_facts = 5
-   mains_notes = 5
-   data_points = 3
-   schemes = 3
-   institutions = 5
-   implications = 5
-   possible_questions = 3
-   keywords = 8
-   flashcards = 5
-
-11. Flashcards must have:
-
-{{
-    "question": "...",
-    "answer": "...",
-    "type": "Prelims"
-}}
-
-Allowed flashcard types:
-Prelims
-Mains
-Concept
-
-12. Keep all outputs concise and exam-oriented.
-
-13. Ceremonial announcements without substantive content
-should normally be irrelevant.
+- relevant = true or false.
+- importance = integer 0-10.
+- If irrelevant:
+  relevant=false
+  importance=0
+  analytical arrays empty.
+- Relevant articles should normally have importance >= 4.
+- GS values may only be:
+  GS1, GS2, GS3, GS4, Prelims.
+- Translate Hindi/regional titles accurately into English.
+- English summary must be 80-120 words.
+- Do not invent facts.
+- Maximum 5 prelims facts.
+- Maximum 5 mains notes.
+- Maximum 3 data points.
+- Maximum 3 schemes.
+- Maximum 5 institutions.
+- Maximum 5 implications.
+- Maximum 3 possible questions.
+- Maximum 8 keywords.
+- Maximum 5 flashcards.
+- Flashcard type must be:
+  Prelims, Mains or Concept.
+- Keep content concise and UPSC-oriented.
 """
+
 
     response = (
         client
@@ -306,6 +248,7 @@ should normally be irrelevant.
         )
     )
 
+
     content = (
         response
         .choices[0]
@@ -313,16 +256,20 @@ should normally be irrelevant.
         .content
     )
 
+
     return extract_json(
         content
     )
 
 
 # =========================================================
-# NORMALISE AI RESULT
+# NORMALISE
 # =========================================================
 
-def normalise_result(result):
+def normalise_result(
+    result,
+    row
+):
 
     relevant = bool(
         result.get(
@@ -330,6 +277,7 @@ def normalise_result(result):
             False,
         )
     )
+
 
     try:
 
@@ -344,20 +292,29 @@ def normalise_result(result):
 
         importance = 0
 
-    if importance < 0:
-        importance = 0
 
-    if importance > 10:
-        importance = 10
+    importance = max(
+        0,
+        min(
+            10,
+            importance,
+        )
+    )
 
-    # Important consistency rule
+
     if not relevant:
 
         importance = 0
 
-    if relevant and importance < 4:
+
+    if (
+        relevant
+        and
+        importance < 4
+    ):
 
         importance = 4
+
 
     allowed_gs = {
         "GS1",
@@ -366,6 +323,7 @@ def normalise_result(result):
         "GS4",
         "Prelims",
     }
+
 
     gs_papers = [
         x
@@ -378,6 +336,7 @@ def normalise_result(result):
         )
         if x in allowed_gs
     ]
+
 
     return {
 
@@ -468,7 +427,10 @@ def normalise_result(result):
                 "english_title",
                 "",
             )
-            or "",
+            or row.get(
+                "title",
+                "",
+            ),
 
         "english_summary":
             result.get(
@@ -495,25 +457,17 @@ def process_one(row):
         f"{row.get('title', '')}"
     )
 
+
     result = analyse_article(
         row
     )
 
+
     update = normalise_result(
-        result
+        result,
+        row,
     )
 
-    # Fallback title
-    if not update[
-        "english_title"
-    ]:
-
-        update[
-            "english_title"
-        ] = row.get(
-            "title",
-            "",
-        )
 
     (
         supabase
@@ -526,15 +480,16 @@ def process_one(row):
         .execute()
     )
 
+
     print(
-        "✓ AI analysis saved | "
+        "✓ SAVED | "
         f"Relevant={update['relevant']} | "
         f"Importance={update['importance']}/10"
     )
 
 
 # =========================================================
-# PROCESS PENDING
+# PENDING
 # =========================================================
 
 def process_pending(
@@ -542,6 +497,7 @@ def process_pending(
 ):
 
     supabase = get_client()
+
 
     response = (
         supabase
@@ -561,17 +517,21 @@ def process_pending(
         .execute()
     )
 
+
     rows = (
         response.data
         or []
     )
+
 
     print(
         f"Pending articles: "
         f"{len(rows)}"
     )
 
+
     processed = 0
+
 
     for row in rows:
 
@@ -588,6 +548,7 @@ def process_pending(
             print(
                 f"ERROR: {error}"
             )
+
 
             (
                 supabase
@@ -606,5 +567,6 @@ def process_pending(
                 )
                 .execute()
             )
+
 
     return processed

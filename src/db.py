@@ -31,7 +31,7 @@ def insert_article(item):
     guid = item["guid"]
 
     # =====================================================
-    # CHECK WHETHER ARTICLE ALREADY EXISTS
+    # CHECK EXISTING ARTICLE
     # =====================================================
 
     existing = (
@@ -43,27 +43,15 @@ def insert_article(item):
         .execute()
     )
 
-    existing_rows = (
-        existing.data or []
-    )
+    rows = existing.data or []
 
     # =====================================================
     # EXISTING ARTICLE
-    #
-    # Update ingestion fields only.
-    #
-    # DO NOT overwrite:
-    # processed
-    # relevant
-    # importance
-    # GS papers
-    # AI notes
-    # flashcards
     # =====================================================
 
-    if existing_rows:
+    if rows:
 
-        article_id = existing_rows[0]["id"]
+        article_id = rows[0]["id"]
 
         update_data = {
             "title": item.get("title"),
@@ -87,7 +75,10 @@ def insert_article(item):
             client
             .table("articles")
             .update(update_data)
-            .eq("id", article_id)
+            .eq(
+                "id",
+                article_id
+            )
             .execute()
         )
 
@@ -120,7 +111,6 @@ def insert_article(item):
             "fetched_at"
         ),
 
-        # Explicit initial AI state
         "processed": False,
         "relevant": False,
         "importance": 0,

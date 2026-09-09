@@ -29,7 +29,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-          XAI_MODEL: ${{ secrets.XAI_MODEL }}
+          XAI_API_KEY: ${{ secrets.Groq_API_KEY }}
+          XAI_MODEL: ${{ secrets.Groq_MODEL }}
         run: |
           python -m src.run_pipeline --batch 50

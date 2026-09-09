@@ -6,8 +6,11 @@ from .config import (
 )
 
 
-def get_client():
+# =========================================================
+# SUPABASE CLIENT
+# =========================================================
 
+def get_client():
     if not SUPABASE_URL:
         raise RuntimeError(
             "SUPABASE_URL is missing."
@@ -24,16 +27,16 @@ def get_client():
     )
 
 
-def insert_article(item):
+# =========================================================
+# INSERT / UPDATE ARTICLE
+# =========================================================
 
+def insert_article(item):
     client = get_client()
 
     guid = item["guid"]
 
-    # =====================================================
-    # CHECK EXISTING ARTICLE
-    # =====================================================
-
+    # Check whether article already exists.
     existing = (
         client
         .table("articles")
@@ -45,72 +48,52 @@ def insert_article(item):
 
     rows = existing.data or []
 
-    # =====================================================
-    # EXISTING ARTICLE
-    # =====================================================
+    # -----------------------------------------------------
+    # UPDATE EXISTING ARTICLE
+    # -----------------------------------------------------
 
     if rows:
-
         article_id = rows[0]["id"]
 
         update_data = {
             "title": item.get("title"),
             "link": item.get("link"),
-            "published_at": item.get(
-                "published_at"
-            ),
+            "published_at": item.get("published_at"),
             "source": item.get("source"),
-            "ministry": item.get(
-                "ministry"
-            ),
-            "raw_text": item.get(
-                "raw_text"
-            ),
-            "fetched_at": item.get(
-                "fetched_at"
-            ),
+            "ministry": item.get("ministry"),
+            "raw_text": item.get("raw_text"),
+            "fetched_at": item.get("fetched_at"),
         }
 
         (
             client
             .table("articles")
             .update(update_data)
-            .eq(
-                "id",
-                article_id
-            )
+            .eq("id", article_id)
             .execute()
         )
 
         print(
-            f"Updated existing article: "
-            f"{article_id}"
+            f"Updated existing article: {article_id}"
         )
 
         return False
 
-    # =====================================================
-    # NEW ARTICLE
-    # =====================================================
+    # -----------------------------------------------------
+    # INSERT NEW ARTICLE
+    # -----------------------------------------------------
 
     data = {
         "guid": guid,
         "title": item.get("title"),
         "link": item.get("link"),
-        "published_at": item.get(
-            "published_at"
-        ),
+        "published_at": item.get("published_at"),
         "source": item.get("source"),
-        "ministry": item.get(
-            "ministry"
-        ),
-        "raw_text": item.get(
-            "raw_text"
-        ),
-        "fetched_at": item.get(
-            "fetched_at"
-        ),
+        "ministry": item.get("ministry"),
+        "raw_text": item.get("raw_text"),
+        "fetched_at": item.get("fetched_at"),
 
+        # AI defaults
         "processed": False,
         "relevant": False,
         "importance": 0,
@@ -123,6 +106,4 @@ def insert_article(item):
         .execute()
     )
 
-    return bool(
-        result.data
-    )
+    return bool(result.data)

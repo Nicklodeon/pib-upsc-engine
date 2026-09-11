@@ -9,6 +9,7 @@ on:
 
 jobs:
   pib-pipeline:
+
     runs-on: ubuntu-latest
 
     steps:
@@ -42,7 +43,89 @@ jobs:
 
 
       # ===================================================
-      # PIB + GROQ PIPELINE
+      # VERIFY GROQ CONFIGURATION
+      # ===================================================
+
+      - name: Verify Groq API
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_MODEL: ${{ secrets.GROQ_MODEL }}
+        run: |
+
+          if [ -z "$GROQ_API_KEY" ]; then
+            echo "ERROR: GROQ_API_KEY GitHub secret is missing."
+            exit 1
+          fi
+
+          if [ -z "$GROQ_MODEL" ]; then
+            echo "ERROR: GROQ_MODEL GitHub secret is missing."
+            exit 1
+          fi
+
+          echo "Groq model configured as:"
+          echo "$GROQ_MODEL"
+
+          echo "Testing Groq API..."
+
+          python - <<'PY'
+          import os
+          import requests
+
+          api_key = os.environ["GROQ_API_KEY"]
+          model = os.environ["GROQ_MODEL"]
+
+          url = "https://api.groq.com/openai/v1/models"
+
+          response = requests.get(
+              url,
+              headers={
+                  "Authorization": f"Bearer {api_key}"
+              },
+              timeout=30,
+          )
+
+          print("Groq HTTP status:", response.status_code)
+
+          if response.status_code != 200:
+              print(response.text)
+              raise SystemExit(
+                  "Groq API authentication/request failed."
+              )
+
+          data = response.json()
+
+          models = [
+              item.get("id")
+              for item in data.get("data", [])
+          ]
+
+          print(
+              f"Groq returned {len(models)} available models."
+          )
+
+          if model not in models:
+              print("")
+              print("ERROR: Configured model is not available:")
+              print(model)
+              print("")
+              print("Available models containing 'gpt-oss':")
+
+              for model_id in models:
+                  if "gpt-oss" in model_id:
+                      print(" -", model_id)
+
+              raise SystemExit(
+                  "Configured GROQ_MODEL is not available."
+              )
+
+          print("")
+          print("SUCCESS: Groq API and model are available.")
+          print("Model:", model)
+          PY
+
+
+      # ===================================================
+      # RUN PIB + GROQ
       # ===================================================
 
       - name: Run PIB + Groq pipeline
